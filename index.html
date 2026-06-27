@@ -62,6 +62,8 @@ button{font-family:inherit;cursor:pointer}
 .hero .sub{color:var(--muted);font-size:13px;margin-top:12px}
 .nwparts{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--muted)}
 .nwparts b{color:var(--ink);font-weight:600;margin-left:4px}
+.nudge{background:var(--brass-soft);border:1px solid #E7D3A6;border-radius:12px;padding:11px 16px;margin-bottom:16px;font-size:13px;color:#6b531f;cursor:pointer}
+.nudge b{color:#4a3914}
 .spark{width:100%;height:120px}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:6px}
 .kpi{background:var(--surface);padding:13px 14px}
@@ -452,20 +454,36 @@ function viewResumen(){
       ${P.pasivos>0?`<span>Pasivos <b class="num neg">−${fmt(P.pasivos)}</b></span>`:""}
     </div>` : "";
 
-  let html=`<div class="card hero">
+  // Valorización acumulada (cuánto se ha incrementado desde que mides) — distinta del valor
+  let valorizAcum=0, valorInv=0;
+  cuentas.filter(c=>c.categoria==="Inversión").forEach(c=>{
+    const ac=perfAcum(c.id,{upto:last}); if(ac.pnl) valorizAcum+=toCcy(ac.pnl,c.moneda,last.y,last.m,CCY);
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(r&&r.saldo!=null) valorInv+=toCcy(r.saldo,c.moneda,last.y,last.m,CCY);
+  });
+  const valorizPct = (valorInv-valorizAcum)>0 ? valorizAcum/(valorInv-valorizAcum) : null;
+  // Ingresos del mes (flujo de caja, NO patrimonio)
+  let ingresoMes=0;
+  cuentas.filter(c=>c.categoria==="Ingreso").forEach(c=>{ const r=regFor(c.id,last.y,last.m); if(r&&r.saldo) ingresoMes+=toCcy(r.saldo,c.moneda,last.y,last.m,CCY); });
+
+  // Recordatorio de cierre mensual
+  const cal=new Date(), curY=cal.getFullYear(), curM=cal.getMonth();
+  const cierreHecho = registros.some(r=> r.anio===curY&&r.mes===curM&&r.saldo!=null && cuentas.find(c=>c.id===r.cuenta_id&&c.categoria==="Inversión"));
+  const nudge = !cierreHecho ? `<div class="nudge" id="nudgeCierre">Cierre de <b>${MESES_L[curM]} ${curY}</b> pendiente — actualiza los saldos de tus inversiones · <span class="linkbtn">Registrar ahora →</span></div>` : "";
+
+  let html=`${nudge}<div class="card hero">
     <div>
       <div class="eyebrow">${eyebrow} · ${MESES_L[last.m]} ${last.y}</div>
       <div class="nw num">${fmt(nw)} <small>${CCY}</small></div>
       <span class="delta ${dcls}">${arrow} ${fmtSigned(dNw)} ${dPct!=null?"· "+fmtPct(dPct):""}</span>
       ${breakdown}
-      <div class="sub">Variación frente a ${MESES_L[prev.m]} ${prev.y}. ${hayPatrimonioTotal?"Activos (líquidos + fijos) menos pasivos":"Suma de saldos de inversión, neto de pasivos"}, en ${CCY} a la tasa del mes.</div>
+      <div class="sub">Lo que vale hoy tu patrimonio. ${hayPatrimonioTotal?"Activos (líquidos + fijos) menos pasivos":"Suma de saldos de inversión, neto de pasivos"}, en ${CCY}. Los ingresos recurrentes no se suman aquí: son flujo, no patrimonio.</div>
     </div>
     <div>
       ${sparkSVG(serie)}
       <div class="kpis">
-        <div class="kpi"><div class="l">Rentabilidad del mes</div><div class="v ${pnlMes>=0?'pos':'neg'} num">${fmtSigned(pnlMes)}</div></div>
-        <div class="kpi"><div class="l">Aportes netos</div><div class="v num">${fmtSigned(aportesMes)}</div></div>
-        <div class="kpi"><div class="l">Cuentas activas</div><div class="v num">${nActivas}</div></div>
+        <div class="kpi"><div class="l">Valorización del mes</div><div class="v ${pnlMes>=0?'pos':'neg'} num">${fmtSigned(pnlMes)}</div></div>
+        <div class="kpi"><div class="l">Valorización acumulada</div><div class="v ${valorizAcum>=0?'pos':'neg'} num">${fmtSigned(valorizAcum)}</div><div class="l" style="text-transform:none;margin-top:2px">${valorizPct!=null?fmtPct(valorizPct):""}</div></div>
+        <div class="kpi"><div class="l">Ingresos del mes</div><div class="v num">${ingresoMes?fmt(ingresoMes):"—"}</div><div class="l" style="text-transform:none;margin-top:2px">flujo, aparte</div></div>
       </div>
     </div>
   </div>`;
@@ -487,6 +505,7 @@ function viewResumen(){
 
   $("#view").innerHTML=html;
   document.querySelectorAll("#rankToggle button").forEach(b=> b.onclick=()=>{rankMode=b.dataset.r;viewResumen();});
+  if($("#nudgeCierre")) $("#nudgeCierre").onclick=()=>{ TAB="registrar"; document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x.dataset.t==="registrar")); render(); };
 }
 
 function allocBy(field,last){
