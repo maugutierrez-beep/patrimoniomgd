@@ -743,9 +743,24 @@ function viewLegado(){
 /* ---------- Arranque y sesión ---------- */
 async function boot(){
   if(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase){
-    try{ supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY); BACKEND="supa"; }catch(e){ BACKEND="local"; }
+    try{ supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,
+      {auth:{flowType:"implicit",detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});
+      BACKEND="supa"; }catch(e){ BACKEND="local"; }
   }
   if(BACKEND==="supa"){
+    const hash=new URLSearchParams(location.hash.replace(/^#/,""));
+    const qs=new URLSearchParams(location.search);
+    // Enlace caducado o ya usado
+    if(hash.get("error")||qs.get("error")){
+      renderLogin("El enlace expiró o ya se usó. Pide uno nuevo en “¿Olvidaste tu contraseña?”."); return;
+    }
+    // Enlace de recuperación válido → mostrar pantalla de nueva contraseña
+    if(hash.get("type")==="recovery" || qs.get("type")==="recovery"){
+      const at=hash.get("access_token"), rt=hash.get("refresh_token");
+      if(at&&rt){ try{ await supa.auth.setSession({access_token:at,refresh_token:rt}); }catch(e){} }
+      renderResetPassword(); return;
+    }
+    supa.auth.onAuthStateChange((event)=>{ if(event==="PASSWORD_RECOVERY") renderResetPassword(); });
     const {data:{session}} = await supa.auth.getSession();
     if(!session){ renderLogin(); return; }
     await startApp(session.user);
@@ -762,22 +777,21 @@ async function startApp(user){
   await db.load(); await seedIfEmpty(); render();
 }
 
-function renderLogin(){
-  $("#tabs").style.display="none";
-  $("#cfgBanner").innerHTML="";
-  $("#view").innerHTML=`
-    <div class="login-wrap">
-      <p class="mark">Patrimonio</p>
-      <p class="sub">GVC CAPITAL · acceso privado</p>
-      <div class="login-card">
-        <label class="fl">Correo</label>
-        <input id="lgEmail" type="email" autocomplete="username" placeholder="tu@correo.com">
-        <label class="fl">Contraseña</label>
-        <input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••••">
-        <button class="btn primary" id="lgBtn">Entrar</button>
-        <div class="login-err" id="lgErr"></div>
-      </div>
-    </div>`;
+function authShell(inner){
+  $("#tabs").style.display="none"; $("#cfgBanner").innerHTML="";
+  $("#view").innerHTML=`<div class="login-wrap"><p class="mark">Patrimonio</p>
+    <p class="sub">GVC CAPITAL · acceso privado</p><div class="login-card">${inner}</div></div>`;
+}
+
+function renderLogin(msg){
+  authShell(`
+    <label class="fl">Correo</label>
+    <input id="lgEmail" type="email" autocomplete="username" placeholder="tu@correo.com">
+    <label class="fl">Contraseña</label>
+    <input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••••">
+    <button class="btn primary" id="lgBtn">Entrar</button>
+    <div class="login-err" id="lgErr">${msg||""}</div>
+    <div style="text-align:center;margin-top:14px"><button class="linkbtn" id="lgForgot">¿Olvidaste tu contraseña?</button></div>`);
   const go=async()=>{
     const email=$("#lgEmail").value.trim(), pass=$("#lgPass").value;
     if(!email||!pass){ $("#lgErr").textContent="Escribe correo y contraseña."; return; }
@@ -788,6 +802,52 @@ function renderLogin(){
   };
   $("#lgBtn").onclick=go;
   $("#lgPass").addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
+  $("#lgForgot").onclick=renderForgot;
+}
+
+function renderForgot(){
+  authShell(`
+    <p class="muted small" style="margin:0 0 4px">Te enviamos un enlace a tu correo para crear una contraseña nueva.</p>
+    <label class="fl">Correo</label>
+    <input id="fgEmail" type="email" autocomplete="username" placeholder="tu@correo.com">
+    <button class="btn primary" id="fgBtn">Enviar enlace</button>
+    <div class="login-err" id="fgErr"></div>
+    <div style="text-align:center;margin-top:14px"><button class="linkbtn" id="fgBack">Volver a entrar</button></div>`);
+  $("#fgBack").onclick=renderLogin;
+  $("#fgBtn").onclick=async()=>{
+    const email=$("#fgEmail").value.trim();
+    if(!email){ $("#fgErr").textContent="Escribe tu correo."; return; }
+    $("#fgBtn").textContent="Enviando…"; $("#fgErr").textContent="";
+    const redirectTo=location.origin+location.pathname;
+    const {error}=await supa.auth.resetPasswordForEmail(email,{redirectTo});
+    if(error){ $("#fgErr").textContent="No se pudo enviar. Revisa el correo e inténtalo de nuevo."; $("#fgBtn").textContent="Enviar enlace"; return; }
+    authShell(`<p style="margin:0 0 6px;font-weight:600">Revisa tu correo</p>
+      <p class="muted small">Te enviamos un enlace a <b>${email}</b> para crear tu contraseña nueva. Si no lo ves, mira en spam.</p>
+      <button class="btn ghost" id="fgDone" style="width:100%;margin-top:18px">Volver</button>`);
+    $("#fgDone").onclick=renderLogin;
+  };
+}
+
+function renderResetPassword(){
+  authShell(`
+    <p style="margin:0 0 6px;font-weight:600">Nueva contraseña</p>
+    <label class="fl">Contraseña nueva</label>
+    <input id="rpPass" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres">
+    <label class="fl">Repítela</label>
+    <input id="rpPass2" type="password" autocomplete="new-password" placeholder="••••••••">
+    <button class="btn primary" id="rpBtn">Guardar contraseña</button>
+    <div class="login-err" id="rpErr"></div>`);
+  $("#rpBtn").onclick=async()=>{
+    const p=$("#rpPass").value, p2=$("#rpPass2").value;
+    if(p.length<6){ $("#rpErr").textContent="Mínimo 6 caracteres."; return; }
+    if(p!==p2){ $("#rpErr").textContent="Las dos contraseñas no coinciden."; return; }
+    $("#rpBtn").textContent="Guardando…"; $("#rpErr").textContent="";
+    const {error}=await supa.auth.updateUser({password:p});
+    if(error){ $("#rpErr").textContent="No se pudo cambiar. Pide un enlace nuevo desde “¿Olvidaste tu contraseña?”."; $("#rpBtn").textContent="Guardar contraseña"; return; }
+    history.replaceState(null,"",location.origin+location.pathname);
+    const {data:{user}}=await supa.auth.getUser();
+    toast("Contraseña actualizada"); await startApp(user);
+  };
 }
 boot();
 </script>
