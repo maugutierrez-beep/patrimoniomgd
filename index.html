@@ -60,6 +60,8 @@ button{font-family:inherit;cursor:pointer}
 .delta{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;padding:5px 11px;border-radius:999px}
 .delta.up{background:var(--pos-soft);color:var(--pos)} .delta.down{background:var(--neg-soft);color:var(--neg)} .delta.flat{background:#EEF1F5;color:var(--muted)}
 .hero .sub{color:var(--muted);font-size:13px;margin-top:12px}
+.nwparts{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.nwparts b{color:var(--ink);font-weight:600;margin-left:4px}
 .spark{width:100%;height:120px}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:6px}
 .kpi{background:var(--surface);padding:13px 14px}
@@ -159,6 +161,7 @@ input.num-in{text-align:right;font-variant-numeric:tabular-nums}
     <button data-t="cuentas">Cuentas</button>
     <button data-t="historico">Histórico</button>
     <button data-t="legado">Legado</button>
+    <button data-t="bitacora">Bitácora</button>
   </div>
 
   <div id="view"></div>
@@ -178,7 +181,8 @@ const SUPABASE_ANON_KEY = "sb_publishable_clyFqaiVsQEwXODzViVBXg_JN3Fxost"; // t
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const MESES_L = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const CATS = ["Inversión","Ingreso","Pasivo"];
-const TIPOS = ["Cripto","Broker","Fiducia","Cajita ahorro","Inmueble","Salario","Contrato","Arriendo","Otro"];
+const TIPOS = ["Cripto","Broker","Banco","Fiducia","Cajita ahorro","Inmueble","Vehículo","Salario","Contrato","Arriendo","Otro"];
+const ILIQUIDOS = ["Inmueble","Vehículo"];
 const TITULARES = ["Mauricio","Martha","GVC Capital","Familia"];
 const LEGADO = {"2023": {"Binance": [0, 0, -45868307, 2854046, 0, 11676391, 0, -17596365, 8145505, 24846630, 14911010, 7454080], "Coinbase": [0, 0, 0, 300586, -738896, 128188, 0, -6741096, 3061323, 10412803, 3703325, 14954680], "Credicorp GVC": [1489888, 1184803, 264513, 1321539, -2476452, -1502358, -1482610, 5147501, 1076833, 7517923, 4158127, 4158127], "Credicorp MGD": [1296674, 2837042, 1773995, 2000339, -2182897, -897021, -1422706, 2597701, 0, 790040, 2650860, 1074588], "Etoro MCV": [0, 0, 802705, -1444177, 5536997, 6321774, 3329964, -1885828, -3700513, -2934765, 6924130, 3564000], "Etoro MGD": [7945562, 2450370, 9208703, -10459416, 21785225, 21949515, 6675861, -6562179, -7722598, -11229729, 19182177, 7594880], "Interactive MGD": [0, 0, 0, 0, 8850134, 4712492, 5481093, -12067231, -11590090, -16551218, 27109038, 10876000], "Interactive MV": [0, 0, 0, 0, 0, 0, 645505, -294556, 0, -1331513, 1530967, 715200], "TD Ameritrade": [56943117, 19912109, 24692364, 0, 49846263, 51892429, 14440550, -2942832, -10512101, -40641350, 41847934, 22963320]}, "2024": {"Sierraluna": [24750000, 24750000, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677], "FND": [0, 12358974, 12358974, 12358974, 12358974, 12358974, 12358974, 10824312, 12358974, 12358974, 12358974, 7983150], "Alquiler Giardino": [6400000, 6400000, 6400000, 6400000, 6400000, 6400000, 6993920, 6993920, 6993920, 6993920, 6993920, 6993920], "Binance": [2394400, 34292000, 17857616, -27851532, 22558302, -16591960, 9881680, -15631880, 11180360, 8598623, 61213571, -7718695], "Coinbase": [5325840, 65922360, 30536715, -47121158, 39641170, -30201680, 19777360, -24162440, 15376000, 27667827, 104757981, -4813335], "Credicorp GVC": [4177814, 332473, -1240000, 520064, 1775608, 779334, 0, 0, 0, 0, 0, 0], "Credicorp MGD": [5601799, 447466, -2178952, 804273, 1021115, 779334, 0, 0, 0, 0, 0, 0], "Etoro MCV": [13960, 3309160, 802978, 0, null, 0, 8501320, 84280, 6140000, -598279, 7687413, 0], "Etoro MGD": [-3828520, 6344160, -3432404, 3798118, 0, 0, 0, 0, 0, 0, 0, 0], "Interactive MGD": [-10113200, 12477840, -1137232, 1882500, 45972758, 139772240, -25232000, -16456000, 74908000, 5550457, 135076372, 20371714], "Interactive MV": [74520, 96840, 42262, 0, null, 0, 2601920, 65320, 980000, 43670, 2390123, null], "TD Ameritrade": [-14769280, 16194280, 6858854, -1882500, 0, 0, 0, 0, 0, 0, 0, 0], "Charles Schwab": [null, null, null, null, null, null, null, 410960, 104040, 152117, 411124, null], "Nubank BG MGD": [null, null, null, null, null, null, null, 0, 0, 180657, 363111, 588223], "Nubank EI": [null, null, null, null, null, 422022, 1604876, 989586, 989586, 695777, 686451, 641304], "Nubank Utilidad": [null, null, null, null, null, null, 399136, 1694609, 0, 405083, 873569, 859309], "Nubank Ganadería": [null, null, null, null, null, null, 65753, 56933, 62393, 58558, 52583, 579062], "Nubank MCVC": [null, null, null, null, null, null, null, 705000, 705000, 0, 0, 0], "Nubank Ahorro Patrimonial MCV": [null, null, null, null, null, null, null, null, null, 2037803, 563437, 573268], "Nubank Fondo Niñas": [null, null, null, null, null, null, null, null, null, null, 243220, 272918], "JP Morgan": [null, null, null, null, null, 642360, 1773760, 2655320, 2393400, 2323375, 9301374, -12444439], "LuloBank Cruze": [null, null, null, null, null, null, null, null, null, 326874, 539908, 463759], "Lulobank Utilidades": [null, null, null, null, null, null, null, null, null, 769962, 1318099, 1133780], "Lulobank Ganadería": [null, null, null, null, null, null, null, null, null, 422173, 971795, 1836762], "Lulobank BG3": [null, null, null, null, null, null, null, null, null, 635525, 1243651, 598095], "Fiducuenta GVC Capital": [null, null, null, 977000, 1152354, 1152354, 1152354, 1152354, 1152354, 1152354, 1614202, 979445]}, "2025": {"Salario Sierraluna": [20438369, 20438369, 20438369, 0, 0, 20438369, null, 20438369, 20438369, 20438369, 20438369, 20438369], "Contrato FND": [0, 5633333, 12358974, 12358974, 12358974, 12358974, 12358974, 7300000, 0, 3000000, 13000000, 0], "Alquiler Giardino": [6969000, 6969000, 6969000, 6969000, 6969000, 6969000, 7345326, 7345326, 7345326, 7345326, 7345327, 0], "Binance": [7109800, -13197362, 9922446, 0, 0, 50593200, 26011000, -12467800, 6615800, -27497826, -111640732, 0], "Coinbase": [10909800, -42592072, -3008270, 0, 0, 76714400, 31133400, -28268200, 18819006, -12440060, -66431600, 0], "Etoro MCV": [16017608, -11935800, -3644200, 0, 0, 21857600, 852112, 4742400, 9218800, 3773400, -6171200, 0], "Interactive MGD": [34359600, -131670000, 40052000, 0, 0, 133395200, -6102800, 107555200, 119715200, 102739156, -2967800, 0], "Interactive MV": [1333800, -2321800, -1565600, 0, 0, 3131200, 274132, 1432600, 2287600, 1820200, 490200, 0], "Charles Schwab": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "JP Morgan": [10343638, -7469850, -17670000, 0, 0, -6875758, 38261326, 3176800, 11669800, 9881938, 9881938, 0], "Fiducuenta - GVC Capital": [1377348, 0, 0, 0, 0, 4097127, 1321382, 881418, 666971, 602000, 253402, 0], "Nubank - BG": [1634899, 1886900, 2500730, 0, 0, 927003, 1265303, 962223, 738510, 169000, 273000, 0], "Nubank - EI": [233293, 756683, 606793, 0, 0, 1476545, 0, 0, 0, 0, 0, 0], "Nubank - Ganadería": [1792775, 3701086, 3701086, 0, 0, 0, 0, 0, 0, 0, 0, 0], "Nubank - Ahorro Patrimonial MCV": [618827, null, 466057, 0, 0, 0, 662449, 765752, 788681, 768200, 588979, 0], "Nubank - Fondo Niños": [201000, null, 389000, 0, 0, 0, 151216, 174000, 177000, 201000, 165000, 0], "Nubank - Cruze": [219074, 434426, 478824, 0, 0, 0, 1967053, 467237, 465748, 496738, 400982, 0], "Lulobank - Utilidades/BG": [2164010, 2980645, 0, 0, 0, 0, 49226, 284351, 204954, 0, 0, 0], "Lulobank - Ganadería": [2980645, 3701086, 3701086, 0, 0, 6411323, 5917206, 3325793, 2984729, 2981834, 0, 0], "Lulobank - Credito300": [null, null, null, null, null, null, 2124662, 1239162, null, 1076785, 0, 0], "Lulobank - EI": [null, null, null, null, null, null, 93328, 465331, null, 0, 0, 0]}, "2026": {"Salario Sierraluna": [23600000, null, null, null, null, null, null, null, null, null, null, null], "Contrato FND": [0, null, null, null, null, null, null, null, null, null, null, null], "Alquiler Giardino": [7345327, null, null, null, null, null, null, null, null, null, null, null], "Binance": [-78512520, null, null, null, null, null, null, null, null, null, null, null], "Coinbase": [-41747100, null, null, null, null, null, null, null, null, null, null, null], "Etoro MCV": [-2697300, null, null, null, null, null, null, null, null, null, null, null], "Interactive MGD": [91787195, null, null, null, null, null, null, null, null, null, null, null], "Interactive MV": [-59200, null, null, null, null, null, null, null, null, null, null, null], "Charles Schwab": [0, null, null, null, null, null, null, null, null, null, null, null], "JP Morgan": [8626624, null, null, null, null, null, null, null, null, null, null, null], "Fiducuenta - GVC Capital": [0, null, null, null, null, null, null, null, null, null, null, null], "Nubank - BG": [273000, null, null, null, null, null, null, null, null, null, null, null], "Nubank - EI": [0, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Ganadería": [0, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Ahorro Patrimonial MCV": [588979, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Fondo Niños": [165000, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Cruze": [400982, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - Utilidades/BG": [0, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - Ganadería": [0, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - Credito300": [0, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - EI": [0, null, null, null, null, null, null, null, null, null, null, null]}};
 
@@ -232,6 +236,33 @@ const db = {
     const i=tasas.findIndex(t=>t.anio===anio&&t.mes===mes);
     if(i>=0) tasas[i].usd_cop=valor; else tasas.push(o);
     LS.set("tasas",tasas);
+  },
+  async logBitacora(rows){
+    if(!rows||!rows.length) return;
+    if(BACKEND==="supa"){ try{ await supa.from("bitacora").insert(rows); }catch(e){} }
+    else { const b=LS.get("bitacora",[]); rows.forEach(r=>b.unshift({...r,fecha:new Date().toISOString()})); LS.set("bitacora",b.slice(0,500)); }
+  },
+  async listBitacora(limit=80){
+    if(BACKEND==="supa"){ try{ const {data}=await supa.from("bitacora").select("*").order("fecha",{ascending:false}).limit(limit); return data||[]; }catch(e){ return null; } }
+    return LS.get("bitacora",[]).slice(0,limit);
+  },
+  async saveSnapshot(){
+    const data={cuentas,registros,tasas};
+    if(BACKEND==="supa"){
+      try{
+        await supa.from("snapshots").insert({data});
+        const {data:all}=await supa.from("snapshots").select("id").order("fecha",{ascending:false});
+        if(all&&all.length>15){ const viejos=all.slice(15).map(s=>s.id); await supa.from("snapshots").delete().in("id",viejos); }
+      }catch(e){}
+    }else{ const s=LS.get("snapshots",[]); s.unshift({id:Date.now(),fecha:new Date().toISOString(),data}); LS.set("snapshots",s.slice(0,15)); }
+  },
+  async listSnapshots(){
+    if(BACKEND==="supa"){ try{ const {data}=await supa.from("snapshots").select("id,fecha").order("fecha",{ascending:false}); return data||[]; }catch(e){ return null; } }
+    return LS.get("snapshots",[]).map(s=>({id:s.id,fecha:s.fecha}));
+  },
+  async getSnapshot(id){
+    if(BACKEND==="supa"){ try{ const {data}=await supa.from("snapshots").select("data").eq("id",id).single(); return data&&data.data; }catch(e){ return null; } }
+    const s=LS.get("snapshots",[]).find(x=>x.id===id); return s&&s.data;
   }
 };
 
@@ -327,17 +358,20 @@ function perfAcum(cid, {ytd=false, upto=null}={}){
   return {pnl, ret: has? chain-1 : null};
 }
 // patrimonio (net worth) en (y,m) en moneda CCY: suma saldos vigentes de Inversión - Pasivo
-function netWorthAt(y,m){
-  let total=0;
+function netWorthParts(y,m){
+  let liquido=0, fijos=0, pasivos=0;
   for(const c of cuentas){
     if(c.categoria==="Ingreso") continue;
-    const r = regFor(c.id,y,m) || prevReg(c.id,y,m); // usa saldo del mes o el último conocido
+    const r = regFor(c.id,y,m) || prevReg(c.id,y,m);
     if(!r||r.saldo==null) continue;
     const v=toCcy(r.saldo,c.moneda,y,m,CCY);
-    total += c.categoria==="Pasivo" ? -v : v;
+    if(c.categoria==="Pasivo") pasivos+=v;
+    else if(ILIQUIDOS.includes(c.tipo)) fijos+=v;
+    else liquido+=v;
   }
-  return total;
+  return {liquido,fijos,pasivos,total:liquido+fijos-pasivos};
 }
+function netWorthAt(y,m){ return netWorthParts(y,m).total; }
 // serie de patrimonio por mes (solo meses con al menos un registro)
 function periodsWithData(){
   const set=new Set(); registros.forEach(r=> set.add(r.anio+"-"+r.mes));
@@ -384,6 +418,7 @@ function render(){
   else if(TAB==="cuentas") viewCuentas();
   else if(TAB==="historico") viewHistorico();
   else if(TAB==="legado") viewLegado();
+  else if(TAB==="bitacora") viewBitacora();
 }
 
 /* ===== RESUMEN ===== */
@@ -408,13 +443,22 @@ function viewResumen(){
     if(p) aportesMes+=toCcy(p.flujo||0,c.moneda,last.y,last.m,CCY);
   });
   const nActivas=cuentas.filter(c=>c.activa!==false&&c.categoria==="Inversión").length;
+  const P=netWorthParts(last.y,last.m);
+  const hayPatrimonioTotal = P.fijos>0 || P.pasivos>0;
+  const eyebrow = hayPatrimonioTotal ? "Patrimonio total" : "Patrimonio financiero";
+  const breakdown = hayPatrimonioTotal ? `<div class="nwparts">
+      <span>Líquido <b class="num">${fmt(P.liquido)}</b></span>
+      ${P.fijos>0?`<span>Activos fijos <b class="num">${fmt(P.fijos)}</b></span>`:""}
+      ${P.pasivos>0?`<span>Pasivos <b class="num neg">−${fmt(P.pasivos)}</b></span>`:""}
+    </div>` : "";
 
   let html=`<div class="card hero">
     <div>
-      <div class="eyebrow">Patrimonio financiero · ${MESES_L[last.m]} ${last.y}</div>
+      <div class="eyebrow">${eyebrow} · ${MESES_L[last.m]} ${last.y}</div>
       <div class="nw num">${fmt(nw)} <small>${CCY}</small></div>
       <span class="delta ${dcls}">${arrow} ${fmtSigned(dNw)} ${dPct!=null?"· "+fmtPct(dPct):""}</span>
-      <div class="sub">Variación frente a ${MESES_L[prev.m]} ${prev.y}. Suma de saldos de cuentas de inversión, neto de pasivos, convertido a ${CCY} a la tasa del mes.</div>
+      ${breakdown}
+      <div class="sub">Variación frente a ${MESES_L[prev.m]} ${prev.y}. ${hayPatrimonioTotal?"Activos (líquidos + fijos) menos pasivos":"Suma de saldos de inversión, neto de pasivos"}, en ${CCY} a la tasa del mes.</div>
     </div>
     <div>
       ${sparkSVG(serie)}
@@ -579,16 +623,39 @@ function viewRegistrar(){
   recalc();
 
   $("#rgSave").onclick=async()=>{
-    const rate=parseFloat($("#rgRate").value); if(rate) await db.upsertTasa(selY,selM,rate);
-    let n=0;
+    // Recolectar lo que se va a guardar
+    const items=[];
     for(const row of document.querySelectorAll(".erow")){
       const id=row.dataset.id;
       const s=parseFloat(row.querySelector(".s").value);
       const a=parseFloat(row.querySelector(".a").value)||0, w=parseFloat(row.querySelector(".w").value)||0;
       if(isNaN(s)) continue;
-      await db.upsertReg({cuenta_id:id,anio:selY,mes:selM,saldo:s,aportes:a,retiros:w}); n++;
+      items.push({id,s,a,w});
     }
-    await db.load(); toast(`Guardado · ${n} cuentas · ${MESES_L[selM]} ${selY}`); recalc();
+    // Guardrail: avisar cambios bruscos (>40%) vs mes anterior, descontando flujos
+    const alertas=[];
+    for(const it of items){
+      const pv=prevReg(it.id,selY,selM); if(!pv||pv.saldo<=0) continue;
+      const esperado=pv.saldo+(it.a-it.w);
+      const cambio=Math.abs(it.s-esperado)/Math.abs(pv.saldo);
+      if(cambio>0.40){ const c=cuentas.find(x=>x.id===it.id);
+        alertas.push(`• ${c.nombre}: ${pv.saldo.toLocaleString("es-CO")} → ${it.s.toLocaleString("es-CO")}`); }
+    }
+    if(alertas.length){
+      if(!confirm("Estos saldos cambiaron más de 40% frente al mes anterior. ¿Seguro que están bien?\n\n"+alertas.join("\n")+"\n\n(Si moviste plata, ábrele “+ aporte/retiro” para que no lo cuente como ganancia.)")) return;
+    }
+    const rate=parseFloat($("#rgRate").value); if(rate) await db.upsertTasa(selY,selM,rate);
+    // Guardar + armar bitácora
+    const bit=[];
+    for(const it of items){
+      const ex=regFor(it.id,selY,selM); const prevVal=ex?ex.saldo:null;
+      await db.upsertReg({cuenta_id:it.id,anio:selY,mes:selM,saldo:it.s,aportes:it.a,retiros:it.w});
+      if(prevVal!==it.s){ const c=cuentas.find(x=>x.id===it.id);
+        bit.push({cuenta_id:it.id,cuenta_nombre:c?c.nombre:"",anio:selY,mes:selM,saldo_anterior:prevVal,saldo_nuevo:it.s,accion:prevVal==null?"crear":"editar"}); }
+    }
+    await db.logBitacora(bit);
+    await db.saveSnapshot();
+    await db.load(); toast(`Guardado · ${items.length} cuentas · ${MESES_L[selM]} ${selY}`); recalc();
   };
 }
 
@@ -783,6 +850,48 @@ function viewLegado(){
 
   document.getElementById('view').innerHTML=html;
   document.getElementById('lgY').onchange=e=>{legY=+e.target.value;viewLegado();};
+}
+
+/* ===== BITÁCORA Y RESPALDOS ===== */
+async function viewBitacora(){
+  $("#view").innerHTML=`<div class="empty">Cargando bitácora…</div>`;
+  const [log,snaps]=await Promise.all([db.listBitacora(80), db.listSnapshots()]);
+
+  let logHtml;
+  if(log===null){
+    logHtml=`<div class="cfg">Para activar la bitácora y los respaldos automáticos, falta crear sus tablas en Supabase (un paso de una sola vez). Pídeme el script SQL y lo pegas en el editor.</div>`;
+  }else if(!log.length){
+    logHtml=`<div class="empty">Aún no hay movimientos registrados. Cada vez que guardes saldos, quedará el detalle aquí.</div>`;
+  }else{
+    logHtml=`<div class="card"><table>
+      <thead><tr><th>Fecha</th><th>Cuenta</th><th>Periodo</th><th>De</th><th>A</th></tr></thead><tbody>`+
+      log.map(r=>{const f=new Date(r.fecha); const fl=f.toLocaleDateString("es-CO")+" "+f.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"});
+        return `<tr><td class="muted small">${fl}</td><td style="font-weight:600">${r.cuenta_nombre||"—"}</td>
+          <td class="muted">${MESES[r.mes]} ${r.anio}</td>
+          <td class="num muted">${r.saldo_anterior!=null?Math.round(r.saldo_anterior).toLocaleString("es-CO"):"—"}</td>
+          <td class="num">${Math.round(r.saldo_nuevo).toLocaleString("es-CO")}</td></tr>`;
+      }).join("")+`</tbody></table></div>`;
+  }
+
+  let snapHtml="";
+  if(snaps&&snaps.length){
+    snapHtml=`<div class="sec-h"><h2>Respaldos automáticos</h2><span class="hint">se guarda una foto en cada registro · máx. 15</span></div>
+      <div class="card"><table><thead><tr><th>Fecha de la foto</th><th></th></tr></thead><tbody>`+
+      snaps.map(s=>{const f=new Date(s.fecha);
+        return `<tr><td>${f.toLocaleString("es-CO")}</td><td class="right"><button class="btn ghost sm restoreSnap" data-id="${s.id}">Restaurar</button></td></tr>`;
+      }).join("")+`</tbody></table></div>`;
+  }
+
+  $("#view").innerHTML=`<div class="sec-h"><h2>Bitácora de cambios</h2><span class="hint">últimos 80 movimientos</span></div>`+logHtml+snapHtml;
+
+  document.querySelectorAll(".restoreSnap").forEach(b=> b.onclick=async()=>{
+    if(!confirm("Restaurar esta foto sobrescribe los saldos actuales con los de esa fecha (no borra cuentas nuevas). ¿Continuar?")) return;
+    const data=await db.getSnapshot(b.dataset.id); if(!data){ toast("No pude leer el respaldo"); return; }
+    if(Array.isArray(data.cuentas)) for(const c of data.cuentas) await db.upsertCuenta(c);
+    if(Array.isArray(data.tasas)) for(const t of data.tasas) await db.upsertTasa(t.anio,t.mes,t.usd_cop);
+    if(Array.isArray(data.registros)) for(const r of data.registros) await db.upsertReg({cuenta_id:r.cuenta_id,anio:r.anio,mes:r.mes,saldo:r.saldo,aportes:r.aportes,retiros:r.retiros});
+    await db.load(); toast("Respaldo restaurado"); viewBitacora();
+  });
 }
 
 /* ---------- Arranque y sesión ---------- */
