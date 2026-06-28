@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GVC Capital · Patrimonio</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B2545">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Patrimonio">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -410,6 +415,48 @@ async function fetchFX(){
   }catch(e){}
   return null;
 }
+function exportReport(last){
+  const P=netWorthParts(last.y,last.m), nw=P.total;
+  // composición por clase
+  const map={}; cuentas.filter(c=>c.categoria==="Inversión").forEach(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(!r||r.saldo==null) return;
+    map[claseActivo(c)]=(map[claseActivo(c)]||0)+toCcy(r.saldo,c.moneda,last.y,last.m,CCY);
+  });
+  const tot=Object.values(map).reduce((a,b)=>a+b,0)||1;
+  const comp=Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td style="text-align:right">${fmt(v)}</td><td style="text-align:right">${(v/tot*100).toFixed(0)}%</td></tr>`).join("");
+  // ranking de cuentas por saldo
+  const rows=cuentas.filter(c=>c.categoria==="Inversión").map(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(!r||r.saldo==null) return null;
+    const ac=perfAcum(c.id,{upto:last});
+    return {n:c.nombre,mon:c.moneda,saldo:toCcy(r.saldo,c.moneda,last.y,last.m,CCY),pnl:ac.pnl!=null?toCcy(ac.pnl,c.moneda,last.y,last.m,CCY):null,ret:ac.ret};
+  }).filter(Boolean).sort((a,b)=>b.saldo-a.saldo);
+  const rk=rows.map(r=>`<tr><td>${r.n}</td><td style="text-align:right">${fmt(r.saldo)}</td><td style="text-align:right;color:${(r.pnl||0)>=0?'#1E7A5A':'#B23A48'}">${r.pnl!=null?fmtSigned(r.pnl):'—'}</td><td style="text-align:right">${r.ret!=null?fmtPct(r.ret):'—'}</td></tr>`).join("");
+  let ingresoMes=0; cuentas.filter(c=>c.categoria==="Ingreso").forEach(c=>{const r=regFor(c.id,last.y,last.m); if(r&&r.saldo) ingresoMes+=toCcy(r.saldo,c.moneda,last.y,last.m,CCY);});
+
+  const css="body{font-family:Georgia,serif;color:#0B2545;margin:40px;font-size:13px}h1{font-size:22px;margin:0}h2{font-size:14px;border-bottom:2px solid #B0863A;padding-bottom:4px;margin:24px 0 8px}.big{font-size:34px;font-weight:bold;margin:6px 0}.sub{color:#5B6B7F;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:6px}td,th{padding:6px 8px;border-bottom:1px solid #e5e5e5;font-size:12px}th{text-align:left;color:#5B6B7F;font-size:10px;text-transform:uppercase}.kv{display:flex;gap:30px;margin-top:8px}.kv div span{display:block;color:#5B6B7F;font-size:11px}.kv div b{font-size:16px}";
+  const fecha=new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"});
+  const html=`<html><head><meta charset="utf-8"><title>Reporte Patrimonio ${MESES_L[last.m]} ${last.y}</title><style>${css}</style></head><body>
+    <h1>GVC Capital · Reporte de Patrimonio</h1>
+    <div class="sub">Corte: ${MESES_L[last.m]} ${last.y} · Generado: ${fecha} · Moneda: ${CCY}</div>
+    <div class="big">${fmt(nw)} ${CCY}</div>
+    <div class="kv">
+      <div><span>Líquido</span><b>${fmt(P.liquido)}</b></div>
+      ${P.fijos?`<div><span>Activos fijos</span><b>${fmt(P.fijos)}</b></div>`:""}
+      ${P.pasivos?`<div><span>Pasivos</span><b>−${fmt(P.pasivos)}</b></div>`:""}
+      <div><span>Ingresos del mes (flujo)</span><b>${ingresoMes?fmt(ingresoMes):"—"}</b></div>
+    </div>
+    <h2>Composición por clase de activo</h2>
+    <table><thead><tr><th>Clase</th><th style="text-align:right">Valor</th><th style="text-align:right">%</th></tr></thead><tbody>${comp}</tbody></table>
+    <h2>Detalle por cuenta</h2>
+    <table><thead><tr><th>Cuenta</th><th style="text-align:right">Saldo</th><th style="text-align:right">Valorización</th><th style="text-align:right">Rentab.</th></tr></thead><tbody>${rk}</tbody></table>
+    <p class="sub" style="margin-top:24px">Los ingresos recurrentes no forman parte del patrimonio (son flujo de caja). Valorización = ganancia real descontando aportes y retiros.</p>
+  </body></html>`;
+  const w=window.open("","_blank");
+  if(!w){ toast("Permite ventanas emergentes para el PDF"); return; }
+  w.document.write(html); w.document.close();
+  setTimeout(()=>{ w.print(); }, 400);
+}
+
 function exportData(){
   const data={cuentas,registros,tasas,exportado:new Date().toISOString(),version:1};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -485,7 +532,7 @@ function viewResumen(){
   const cierreHecho = registros.some(r=> r.anio===curY&&r.mes===curM&&r.saldo!=null && cuentas.find(c=>c.id===r.cuenta_id&&c.categoria==="Inversión"));
   const nudge = !cierreHecho ? `<div class="nudge" id="nudgeCierre">Cierre de <b>${MESES_L[curM]} ${curY}</b> pendiente — actualiza los saldos de tus inversiones · <span class="linkbtn">Registrar ahora →</span></div>` : "";
 
-  let html=`${nudge}<div class="card hero">
+  let html=`${nudge}<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn ghost sm" id="btnPDF">Descargar reporte PDF</button></div><div class="card hero">
     <div>
       <div class="eyebrow">${eyebrow} · ${MESES_L[last.m]} ${last.y}</div>
       <div class="nw num">${fmt(nw)} <small>${CCY}</small></div>
@@ -521,6 +568,7 @@ function viewResumen(){
   $("#view").innerHTML=html;
   document.querySelectorAll("#rankToggle button").forEach(b=> b.onclick=()=>{rankMode=b.dataset.r;viewResumen();});
   if($("#nudgeCierre")) $("#nudgeCierre").onclick=()=>{ TAB="registrar"; document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x.dataset.t==="registrar")); render(); };
+  if($("#btnPDF")) $("#btnPDF").onclick=()=>exportReport(last);
 }
 
 function allocBy(field,last){
@@ -1069,6 +1117,25 @@ async function startApp(user){
   const lo=$("#logoutBtn"); lo.style.display=""; lo.onclick=async()=>{ await supa.auth.signOut(); location.reload(); };
   syncCcyUI();
   await db.load(); await seedIfEmpty(); render();
+  subscribeRealtime();
+}
+
+let _rtTimer=null, _rtChannel=null;
+function subscribeRealtime(){
+  if(BACKEND!=="supa" || _rtChannel) return;
+  try{
+    _rtChannel = supa.channel("patrimonio-db")
+      .on("postgres_changes",{event:"*",schema:"public",table:"registros"},onRemoteChange)
+      .on("postgres_changes",{event:"*",schema:"public",table:"cuentas"},onRemoteChange)
+      .on("postgres_changes",{event:"*",schema:"public",table:"tasas"},onRemoteChange)
+      .subscribe();
+  }catch(e){}
+}
+function onRemoteChange(){
+  // No refrescar mientras el usuario está escribiendo en pantallas de captura
+  if(["registrar","cuentas","ingresos"].includes(TAB)) return;
+  clearTimeout(_rtTimer);
+  _rtTimer=setTimeout(async()=>{ await db.load(); render(); }, 600);
 }
 
 function authShell(inner){
@@ -1144,6 +1211,11 @@ function renderResetPassword(){
   };
 }
 boot();
+
+// Service worker (PWA instalable + carga rápida)
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
 </script>
 </body>
 </html>
