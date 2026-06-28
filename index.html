@@ -138,6 +138,35 @@ input.num-in{text-align:right;font-variant-numeric:tabular-nums}
   .flow{grid-template-columns:1fr 1fr}
   th,td{padding:9px 8px;font-size:12.5px}
 }
+/* Mini-resumen persistente */
+#miniSummary:empty{display:none}
+.mini{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--navy);color:#fff;
+  border-radius:12px;padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.mini .l{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#9DB2CC}
+.mini .v{font-family:Fraunces,serif;font-size:24px;line-height:1.1;margin-top:2px}
+.mini .r{text-align:right}
+.mini .d{font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px}
+.mini .d.up{background:rgba(111,207,151,.18);color:#9be8bd}
+.mini .d.down{background:rgba(178,58,72,.22);color:#f3b4bc}
+.mini .d.flat{background:rgba(255,255,255,.12);color:#cdd9e8}
+.mini .warn{font-size:11px;color:#E2B33A;margin-top:3px}
+/* Móvil: tabs deslizables y toques cómodos */
+@media(max-width:640px){
+  .wrap{padding:0 12px 90px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;width:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{white-space:nowrap;padding:10px 15px}
+  .topbar .inner{gap:10px}
+  .brand .b2{display:none}
+  .btn{min-height:42px}
+  .btn.sm{min-height:34px}
+  .card .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar .f{min-width:0}
+  .kpis{grid-template-columns:1fr}
+  .mini .v{font-size:21px}
+  table{display:block;overflow-x:auto;white-space:nowrap}
+  input,select{font-size:16px}  /* evita el zoom de iOS al enfocar */
+}
 .login-wrap{max-width:380px;margin:8vh auto 0;text-align:center}
 .login-wrap .mark{font-family:Fraunces,serif;font-size:30px;color:var(--navy);margin:0 0 4px}
 .login-wrap .sub{color:var(--muted);font-size:13px;margin-bottom:24px;letter-spacing:.02em}
@@ -156,11 +185,13 @@ input.num-in{text-align:right;font-variant-numeric:tabular-nums}
     <button data-c="USD">USD</button>
   </div>
   <div class="status" id="status"><span class="dot local"></span><span id="statusTxt">Local</span></div>
+  <button id="installBtn" class="btn brass sm" style="display:none">Instalar app</button>
   <button id="logoutBtn" class="btn ghost sm" style="display:none;color:#fff;border-color:rgba(255,255,255,.3);background:transparent">Salir</button>
 </div></div>
 
 <div class="wrap">
   <div id="cfgBanner"></div>
+  <div id="miniSummary"></div>
   <div class="tabs" id="tabs">
     <button data-t="resumen" class="on">Resumen</button>
     <button data-t="analisis">Análisis</button>
@@ -404,6 +435,23 @@ document.querySelectorAll("#tabs button").forEach(b=> b.onclick=()=>{TAB=b.datas
 
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1900); }
 
+function renderMini(){
+  const el=$("#miniSummary"); if(!el) return;
+  // No mostrar en Resumen (ya tiene el hero) ni si no hay datos
+  const pers=periodsWithData();
+  if(TAB==="resumen" || !pers.length){ el.innerHTML=""; return; }
+  const last=pers[pers.length-1], prev=pers.length>1?pers[pers.length-2]:prevPeriod(last.y,last.m);
+  const nw=netWorthAt(last.y,last.m), d=nw-netWorthAt(prev.y,prev.m);
+  const cls=d>0?"up":(d<0?"down":"flat"), arr=d>0?"▲":(d<0?"▼":"–");
+  const cal=new Date();
+  const cierreHecho=registros.some(r=> r.anio===cal.getFullYear()&&r.mes===cal.getMonth()&&r.saldo!=null && cuentas.find(c=>c.id===r.cuenta_id&&c.categoria==="Inversión"));
+  el.innerHTML=`<div class="mini">
+    <div><div class="l">Patrimonio · ${MESES[last.m]} ${last.y}</div><div class="v num">${fmt(nw)} <span style="font-size:13px;color:#9DB2CC">${CCY}</span></div>
+      ${!cierreHecho?`<div class="warn">Cierre de ${MESES_L[cal.getMonth()]} pendiente</div>`:""}</div>
+    <div class="r"><div class="d ${cls}">${arr} ${fmtSigned(d)}</div></div>
+  </div>`;
+}
+
 async function fetchFX(){
   // 1) TRM oficial (datos.gov.co / Superfinanciera)
   try{ const r=await fetch("https://www.datos.gov.co/resource/32sa-8pi3.json?$order=vigenciadesde%20DESC&$limit=1");
@@ -475,6 +523,7 @@ async function importData(file){
 
 /* ---------- Vistas ---------- */
 function render(){
+  renderMini();
   if(TAB==="resumen") viewResumen();
   else if(TAB==="analisis") viewAnalisis();
   else if(TAB==="registrar") viewRegistrar();
@@ -1211,6 +1260,22 @@ function renderResetPassword(){
   };
 }
 boot();
+
+// Botón instalar (PWA)
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); deferredPrompt=e;
+  const b=document.getElementById("installBtn"); if(b) b.style.display=""; });
+(function(){
+  const b=document.getElementById("installBtn"); if(!b) return;
+  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone=window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+  if(isiOS && !standalone){ b.style.display=""; }
+  b.onclick=async()=>{
+    if(deferredPrompt){ deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; b.style.display="none"; }
+    else if(isiOS){ alert("Para instalar en iPhone: toca el botón Compartir y luego “Agregar a pantalla de inicio”."); }
+    else { alert("Abre el menú del navegador y elige “Instalar app” o “Agregar a pantalla de inicio”."); }
+  };
+})();
 
 // Service worker (PWA instalable + carga rápida)
 if("serviceWorker" in navigator){
