@@ -195,6 +195,7 @@ input.num-in{text-align:right;font-variant-numeric:tabular-nums}
   <div class="tabs" id="tabs">
     <button data-t="resumen" class="on">Resumen</button>
     <button data-t="analisis">Análisis</button>
+    <button data-t="metas">Metas</button>
     <button data-t="registrar">Registrar</button>
     <button data-t="ingresos">Ingresos</button>
     <button data-t="cuentas">Cuentas</button>
@@ -310,6 +311,14 @@ const db = {
   async getSnapshot(id){
     if(BACKEND==="supa"){ try{ const {data}=await supa.from("snapshots").select("data").eq("id",id).single(); return data&&data.data; }catch(e){ return null; } }
     const s=LS.get("snapshots",[]).find(x=>x.id===id); return s&&s.data;
+  },
+  async getConfig(key){
+    if(BACKEND==="supa"){ try{ const {data,error}=await supa.from("config").select("value").eq("key",key).single(); if(error) throw error; return data?data.value:null; }catch(e){ return LS.get("cfg_"+key,null); } }
+    return LS.get("cfg_"+key,null);
+  },
+  async setConfig(key,value){
+    if(BACKEND==="supa"){ try{ await supa.from("config").upsert({key,value}); }catch(e){} }
+    LS.set("cfg_"+key,value);
   }
 };
 
@@ -419,6 +428,16 @@ function netWorthParts(y,m){
   return {liquido,fijos,pasivos,total:liquido+fijos-pasivos};
 }
 function netWorthAt(y,m){ return netWorthParts(y,m).total; }
+function nwInCcy(y,m,ccy){
+  let t=0;
+  for(const c of cuentas){
+    if(c.categoria==="Ingreso") continue;
+    const r=regFor(c.id,y,m)||prevReg(c.id,y,m); if(!r||r.saldo==null) continue;
+    const v=toCcy(r.saldo,c.moneda,y,m,ccy);
+    t += c.categoria==="Pasivo" ? -v : v;
+  }
+  return t;
+}
 // serie de patrimonio por mes (solo meses con al menos un registro)
 function periodsWithData(){
   const set=new Set(); registros.forEach(r=> set.add(r.anio+"-"+r.mes));
@@ -548,6 +567,7 @@ function render(){
   renderMini();
   if(TAB==="resumen") viewResumen();
   else if(TAB==="analisis") viewAnalisis();
+  else if(TAB==="metas") viewMetas();
   else if(TAB==="registrar") viewRegistrar();
   else if(TAB==="ingresos") viewIngresos();
   else if(TAB==="cuentas") viewCuentas();
@@ -1143,6 +1163,73 @@ function viewAnalisis(){
   if(document.getElementById("bSave")) document.getElementById("bSave").onclick=()=>{
     LS.set("bench",{inflacion:parseFloat(document.getElementById("bInf").value)||0,sp500:parseFloat(document.getElementById("bSp").value)||0});
     toast("Referencias guardadas"); viewAnalisis();
+  };
+}
+
+/* ===== METAS PATRIMONIALES ===== */
+function fmtCcy(n,ccy){ return "$"+Math.round(n).toLocaleString("es-CO")+" "+ccy; }
+async function viewMetas(){
+  $("#view").innerHTML=`<div class="empty">Cargando…</div>`;
+  const meta=await db.getConfig("meta");
+  if(!meta){ return metaForm(null); }
+
+  const mc=meta.moneda||"COP", objetivo=+meta.objetivo;
+  const pers=periodsWithData();
+  const last=pers.length?pers[pers.length-1]:{y:selY,m:selM};
+  const actual=nwInCcy(last.y,last.m,mc);
+  const prog=objetivo>0?actual/objetivo:0;
+  const faltante=objetivo-actual;
+  const [fy,fm]=meta.fecha.split("-").map(Number);
+  const cal=new Date(); const monthsRem=(fy-cal.getFullYear())*12+((fm-1)-cal.getMonth());
+  const reqPace=monthsRem>0?faltante/monthsRem:null;
+  let pace=null; if(pers.length>=2){ const f=nwInCcy(pers[0].y,pers[0].m,mc); pace=(actual-f)/(pers.length-1); }
+  let etaTxt="—";
+  if(faltante<=0) etaTxt="🎯 ¡Meta alcanzada!";
+  else if(pace!=null&&pace>0){ const m2=Math.ceil(faltante/pace); const d=new Date(); d.setMonth(d.getMonth()+m2); etaTxt=d.toLocaleDateString("es-CO",{month:"long",year:"numeric"})+" (a tu ritmo actual)"; }
+  else if(pace!=null) etaTxt="Sin avance al ritmo actual";
+  else etaTxt="Necesitas ≥2 meses para proyectar";
+  let estado="", ecls="flat";
+  if(reqPace!=null&&pace!=null&&faltante>0){ if(pace>=reqPace){estado="Vas adelantado al ritmo necesario";ecls="up";} else {estado="Vas por debajo del ritmo necesario";ecls="down";} }
+
+  const pct=Math.max(0,Math.min(100,prog*100));
+  let html=`<div class="card" style="padding:24px">
+    <div class="eyebrow" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-2);font-weight:600">Meta patrimonial</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin:8px 0">
+      <div class="num" style="font-family:Fraunces,serif;font-size:30px;color:var(--navy)">${fmtCcy(objetivo,mc)}</div>
+      <div class="muted">para ${MESES_L[fm-1]} ${fy}</div>
+    </div>
+    <div class="bar" style="height:14px;margin:14px 0 6px"><i style="width:${pct}%;background:var(--brass)"></i></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px"><span><b>${(prog*100).toFixed(1)}%</b> · ${fmtCcy(actual,mc)}</span><span class="muted">${faltante>0?("faltan "+fmtCcy(faltante,mc)):"superada"}</span></div>
+    ${estado?`<div class="delta ${ecls}" style="margin-top:14px">${estado}</div>`:""}
+  </div>
+  <div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:16px">
+    <div class="card" style="padding:16px"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Meses restantes</div><div class="num" style="font-size:22px;font-weight:600;margin-top:4px">${monthsRem>0?monthsRem:0}</div></div>
+    <div class="card" style="padding:16px"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Ritmo necesario / mes</div><div class="num" style="font-size:22px;font-weight:600;margin-top:4px">${reqPace!=null&&reqPace>0?fmtCcy(reqPace,mc):"—"}</div></div>
+    <div class="card" style="padding:16px"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Ritmo actual / mes</div><div class="num ${pace>=0?'pos':'neg'}" style="font-size:22px;font-weight:600;margin-top:4px">${pace!=null?fmtSigned2(pace,mc):"—"}</div></div>
+  </div>
+  <div class="card" style="padding:16px;margin-top:16px"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Proyección de llegada</div><div style="font-size:18px;font-weight:600;margin-top:4px">${etaTxt}</div></div>
+  <div style="display:flex;gap:8px;margin-top:16px"><button class="btn ghost sm" id="metaEdit">Editar meta</button><button class="btn danger sm" id="metaDel">Eliminar meta</button></div>
+  <p class="muted small" style="margin-top:12px">El ritmo actual se calcula con el crecimiento promedio de tu patrimonio en los meses que llevas registrados. Mientras más cierres mensuales tengas, más precisa la proyección.</p>`;
+  $("#view").innerHTML=html;
+  $("#metaEdit").onclick=()=>metaForm(meta);
+  $("#metaDel").onclick=async()=>{ if(!confirm("¿Eliminar la meta?"))return; await db.setConfig("meta",null); toast("Meta eliminada"); viewMetas(); };
+}
+function fmtSigned2(n,ccy){ return (n>=0?"+":"−")+"$"+Math.round(Math.abs(n)).toLocaleString("es-CO")+" "+ccy; }
+function metaForm(meta){
+  const today=new Date(); const defM=String(today.getFullYear()+1)+"-12";
+  $("#view").innerHTML=`<div class="card" style="padding:24px;max-width:520px">
+    <div class="grp-title" style="color:var(--navy);padding:0 0 10px">${meta?"Editar meta":"Definir meta patrimonial"}</div>
+    <label class="fl">Objetivo (monto)</label><input id="mObj" class="num-in" placeholder="ej: 600000" value="${meta?meta.objetivo:""}">
+    <div style="display:flex;gap:12px;margin-top:12px">
+      <div style="flex:1"><label class="fl">Moneda</label><select id="mMon"><option ${meta&&meta.moneda==='USD'?'selected':''}>USD</option><option ${!meta||meta.moneda==='COP'?'selected':''}>COP</option></select></div>
+      <div style="flex:1"><label class="fl">Fecha objetivo</label><input id="mFecha" type="month" value="${meta?meta.fecha:defM}"></div>
+    </div>
+    <button class="btn primary" id="mSave" style="margin-top:18px;width:100%">Guardar meta</button>
+  </div>`;
+  $("#mSave").onclick=async()=>{
+    const obj=parseFloat($("#mObj").value); if(isNaN(obj)||obj<=0){toast("Pon un objetivo válido");return;}
+    await db.setConfig("meta",{objetivo:obj,moneda:$("#mMon").value,fecha:$("#mFecha").value});
+    toast("Meta guardada"); viewMetas();
   };
 }
 
