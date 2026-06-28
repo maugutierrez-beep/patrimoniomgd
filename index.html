@@ -158,6 +158,7 @@ input.num-in{text-align:right;font-variant-numeric:tabular-nums}
   <div id="cfgBanner"></div>
   <div class="tabs" id="tabs">
     <button data-t="resumen" class="on">Resumen</button>
+    <button data-t="analisis">Análisis</button>
     <button data-t="registrar">Registrar</button>
     <button data-t="ingresos">Ingresos</button>
     <button data-t="cuentas">Cuentas</button>
@@ -185,6 +186,14 @@ const MESES_L = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agost
 const CATS = ["Inversión","Ingreso","Pasivo"];
 const TIPOS = ["Cripto","Broker","Banco","Fiducia","Cajita ahorro","Inmueble","Vehículo","Salario","Contrato","Arriendo","Otro"];
 const ILIQUIDOS = ["Inmueble","Vehículo"];
+function claseActivo(c){
+  const t=c.tipo||"Otro";
+  if(t==="Cripto") return "Cripto";
+  if(t==="Broker") return "Acciones / Brokers";
+  if(["Banco","Fiducia","Cajita ahorro"].includes(t)) return "Efectivo y ahorro";
+  if(["Inmueble","Vehículo"].includes(t)) return "Activos fijos";
+  return "Otro";
+}
 const TITULARES = ["Mauricio","Martha","GVC Capital","Familia"];
 const LEGADO = {"2023": {"Binance": [0, 0, -45868307, 2854046, 0, 11676391, 0, -17596365, 8145505, 24846630, 14911010, 7454080], "Coinbase": [0, 0, 0, 300586, -738896, 128188, 0, -6741096, 3061323, 10412803, 3703325, 14954680], "Credicorp GVC": [1489888, 1184803, 264513, 1321539, -2476452, -1502358, -1482610, 5147501, 1076833, 7517923, 4158127, 4158127], "Credicorp MGD": [1296674, 2837042, 1773995, 2000339, -2182897, -897021, -1422706, 2597701, 0, 790040, 2650860, 1074588], "Etoro MCV": [0, 0, 802705, -1444177, 5536997, 6321774, 3329964, -1885828, -3700513, -2934765, 6924130, 3564000], "Etoro MGD": [7945562, 2450370, 9208703, -10459416, 21785225, 21949515, 6675861, -6562179, -7722598, -11229729, 19182177, 7594880], "Interactive MGD": [0, 0, 0, 0, 8850134, 4712492, 5481093, -12067231, -11590090, -16551218, 27109038, 10876000], "Interactive MV": [0, 0, 0, 0, 0, 0, 645505, -294556, 0, -1331513, 1530967, 715200], "TD Ameritrade": [56943117, 19912109, 24692364, 0, 49846263, 51892429, 14440550, -2942832, -10512101, -40641350, 41847934, 22963320]}, "2024": {"Sierraluna": [24750000, 24750000, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677, 20267677], "FND": [0, 12358974, 12358974, 12358974, 12358974, 12358974, 12358974, 10824312, 12358974, 12358974, 12358974, 7983150], "Alquiler Giardino": [6400000, 6400000, 6400000, 6400000, 6400000, 6400000, 6993920, 6993920, 6993920, 6993920, 6993920, 6993920], "Binance": [2394400, 34292000, 17857616, -27851532, 22558302, -16591960, 9881680, -15631880, 11180360, 8598623, 61213571, -7718695], "Coinbase": [5325840, 65922360, 30536715, -47121158, 39641170, -30201680, 19777360, -24162440, 15376000, 27667827, 104757981, -4813335], "Credicorp GVC": [4177814, 332473, -1240000, 520064, 1775608, 779334, 0, 0, 0, 0, 0, 0], "Credicorp MGD": [5601799, 447466, -2178952, 804273, 1021115, 779334, 0, 0, 0, 0, 0, 0], "Etoro MCV": [13960, 3309160, 802978, 0, null, 0, 8501320, 84280, 6140000, -598279, 7687413, 0], "Etoro MGD": [-3828520, 6344160, -3432404, 3798118, 0, 0, 0, 0, 0, 0, 0, 0], "Interactive MGD": [-10113200, 12477840, -1137232, 1882500, 45972758, 139772240, -25232000, -16456000, 74908000, 5550457, 135076372, 20371714], "Interactive MV": [74520, 96840, 42262, 0, null, 0, 2601920, 65320, 980000, 43670, 2390123, null], "TD Ameritrade": [-14769280, 16194280, 6858854, -1882500, 0, 0, 0, 0, 0, 0, 0, 0], "Charles Schwab": [null, null, null, null, null, null, null, 410960, 104040, 152117, 411124, null], "Nubank BG MGD": [null, null, null, null, null, null, null, 0, 0, 180657, 363111, 588223], "Nubank EI": [null, null, null, null, null, 422022, 1604876, 989586, 989586, 695777, 686451, 641304], "Nubank Utilidad": [null, null, null, null, null, null, 399136, 1694609, 0, 405083, 873569, 859309], "Nubank Ganadería": [null, null, null, null, null, null, 65753, 56933, 62393, 58558, 52583, 579062], "Nubank MCVC": [null, null, null, null, null, null, null, 705000, 705000, 0, 0, 0], "Nubank Ahorro Patrimonial MCV": [null, null, null, null, null, null, null, null, null, 2037803, 563437, 573268], "Nubank Fondo Niñas": [null, null, null, null, null, null, null, null, null, null, 243220, 272918], "JP Morgan": [null, null, null, null, null, 642360, 1773760, 2655320, 2393400, 2323375, 9301374, -12444439], "LuloBank Cruze": [null, null, null, null, null, null, null, null, null, 326874, 539908, 463759], "Lulobank Utilidades": [null, null, null, null, null, null, null, null, null, 769962, 1318099, 1133780], "Lulobank Ganadería": [null, null, null, null, null, null, null, null, null, 422173, 971795, 1836762], "Lulobank BG3": [null, null, null, null, null, null, null, null, null, 635525, 1243651, 598095], "Fiducuenta GVC Capital": [null, null, null, 977000, 1152354, 1152354, 1152354, 1152354, 1152354, 1152354, 1614202, 979445]}, "2025": {"Salario Sierraluna": [20438369, 20438369, 20438369, 0, 0, 20438369, null, 20438369, 20438369, 20438369, 20438369, 20438369], "Contrato FND": [0, 5633333, 12358974, 12358974, 12358974, 12358974, 12358974, 7300000, 0, 3000000, 13000000, 0], "Alquiler Giardino": [6969000, 6969000, 6969000, 6969000, 6969000, 6969000, 7345326, 7345326, 7345326, 7345326, 7345327, 0], "Binance": [7109800, -13197362, 9922446, 0, 0, 50593200, 26011000, -12467800, 6615800, -27497826, -111640732, 0], "Coinbase": [10909800, -42592072, -3008270, 0, 0, 76714400, 31133400, -28268200, 18819006, -12440060, -66431600, 0], "Etoro MCV": [16017608, -11935800, -3644200, 0, 0, 21857600, 852112, 4742400, 9218800, 3773400, -6171200, 0], "Interactive MGD": [34359600, -131670000, 40052000, 0, 0, 133395200, -6102800, 107555200, 119715200, 102739156, -2967800, 0], "Interactive MV": [1333800, -2321800, -1565600, 0, 0, 3131200, 274132, 1432600, 2287600, 1820200, 490200, 0], "Charles Schwab": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "JP Morgan": [10343638, -7469850, -17670000, 0, 0, -6875758, 38261326, 3176800, 11669800, 9881938, 9881938, 0], "Fiducuenta - GVC Capital": [1377348, 0, 0, 0, 0, 4097127, 1321382, 881418, 666971, 602000, 253402, 0], "Nubank - BG": [1634899, 1886900, 2500730, 0, 0, 927003, 1265303, 962223, 738510, 169000, 273000, 0], "Nubank - EI": [233293, 756683, 606793, 0, 0, 1476545, 0, 0, 0, 0, 0, 0], "Nubank - Ganadería": [1792775, 3701086, 3701086, 0, 0, 0, 0, 0, 0, 0, 0, 0], "Nubank - Ahorro Patrimonial MCV": [618827, null, 466057, 0, 0, 0, 662449, 765752, 788681, 768200, 588979, 0], "Nubank - Fondo Niños": [201000, null, 389000, 0, 0, 0, 151216, 174000, 177000, 201000, 165000, 0], "Nubank - Cruze": [219074, 434426, 478824, 0, 0, 0, 1967053, 467237, 465748, 496738, 400982, 0], "Lulobank - Utilidades/BG": [2164010, 2980645, 0, 0, 0, 0, 49226, 284351, 204954, 0, 0, 0], "Lulobank - Ganadería": [2980645, 3701086, 3701086, 0, 0, 6411323, 5917206, 3325793, 2984729, 2981834, 0, 0], "Lulobank - Credito300": [null, null, null, null, null, null, 2124662, 1239162, null, 1076785, 0, 0], "Lulobank - EI": [null, null, null, null, null, null, 93328, 465331, null, 0, 0, 0]}, "2026": {"Salario Sierraluna": [23600000, null, null, null, null, null, null, null, null, null, null, null], "Contrato FND": [0, null, null, null, null, null, null, null, null, null, null, null], "Alquiler Giardino": [7345327, null, null, null, null, null, null, null, null, null, null, null], "Binance": [-78512520, null, null, null, null, null, null, null, null, null, null, null], "Coinbase": [-41747100, null, null, null, null, null, null, null, null, null, null, null], "Etoro MCV": [-2697300, null, null, null, null, null, null, null, null, null, null, null], "Interactive MGD": [91787195, null, null, null, null, null, null, null, null, null, null, null], "Interactive MV": [-59200, null, null, null, null, null, null, null, null, null, null, null], "Charles Schwab": [0, null, null, null, null, null, null, null, null, null, null, null], "JP Morgan": [8626624, null, null, null, null, null, null, null, null, null, null, null], "Fiducuenta - GVC Capital": [0, null, null, null, null, null, null, null, null, null, null, null], "Nubank - BG": [273000, null, null, null, null, null, null, null, null, null, null, null], "Nubank - EI": [0, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Ganadería": [0, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Ahorro Patrimonial MCV": [588979, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Fondo Niños": [165000, null, null, null, null, null, null, null, null, null, null, null], "Nubank - Cruze": [400982, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - Utilidades/BG": [0, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - Ganadería": [0, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - Credito300": [0, null, null, null, null, null, null, null, null, null, null, null], "Lulobank - EI": [0, null, null, null, null, null, null, null, null, null, null, null]}};
 
@@ -391,6 +400,11 @@ document.querySelectorAll("#tabs button").forEach(b=> b.onclick=()=>{TAB=b.datas
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1900); }
 
 async function fetchFX(){
+  // 1) TRM oficial (datos.gov.co / Superfinanciera)
+  try{ const r=await fetch("https://www.datos.gov.co/resource/32sa-8pi3.json?$order=vigenciadesde%20DESC&$limit=1");
+    const j=await r.json(); const v=j&&j[0]&&parseFloat(j[0].valor); if(v) return Math.round(v);
+  }catch(e){}
+  // 2) Respaldo: API genérica
   try{ const r=await fetch("https://open.er-api.com/v6/latest/USD"); const j=await r.json();
     const cop=j&&j.rates&&j.rates.COP; if(cop) return Math.round(cop);
   }catch(e){}
@@ -415,6 +429,7 @@ async function importData(file){
 /* ---------- Vistas ---------- */
 function render(){
   if(TAB==="resumen") viewResumen();
+  else if(TAB==="analisis") viewAnalisis();
   else if(TAB==="registrar") viewRegistrar();
   else if(TAB==="ingresos") viewIngresos();
   else if(TAB==="cuentas") viewCuentas();
@@ -578,7 +593,29 @@ function sparkSVG(serie){
   </svg>`;
 }
 
-/* ===== REGISTRAR ===== */
+// Gráfico de líneas con ejes/etiquetas para una serie [{label, v}]
+function bigLineSVG(serie, color){
+  if(serie.length<2) return `<div class="empty">Se necesitan al menos dos meses para ver la curva.</div>`;
+  const W=720,H=240,pl=8,pr=8,pt=16,pb=26;
+  const vs=serie.map(s=>s.v), min=Math.min(...vs,0), max=Math.max(...vs), rng=(max-min)||1;
+  const X=i=> pl + i*(W-pl-pr)/(serie.length-1);
+  const Y=v=> H-pb - (v-min)/rng*(H-pt-pb);
+  const col=color||"var(--navy-700)";
+  let d=serie.map((s,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(s.v).toFixed(1)).join(" ");
+  const area=`M${X(0)} ${H-pb} `+serie.map((s,i)=>"L"+X(i).toFixed(1)+" "+Y(s.v).toFixed(1)).join(" ")+` L${X(serie.length-1)} ${H-pb} Z`;
+  const dots=serie.map((s,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(s.v).toFixed(1)}" r="2.6" fill="${col}"/>`).join("");
+  // etiquetas X: primera, media, última
+  const idxs=[0,Math.floor((serie.length-1)/2),serie.length-1];
+  const xlabels=idxs.map(i=>`<text x="${X(i).toFixed(1)}" y="${H-8}" font-size="10" fill="#8A98A8" text-anchor="${i===0?'start':(i===serie.length-1?'end':'middle')}">${serie[i].label}</text>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" preserveAspectRatio="xMidYMid meet">
+    <defs><linearGradient id="bg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".14"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <line x1="${pl}" y1="${H-pb}" x2="${W-pr}" y2="${H-pb}" stroke="#EAF0F6"/>
+    <path d="${area}" fill="url(#bg)"/>
+    <path d="${d}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round"/>
+    ${dots}${xlabels}
+    <text x="${pl}" y="12" font-size="10" fill="#8A98A8">máx ${fmt(max)}</text>
+  </svg>`;
+}
 function viewRegistrar(){
   const yrs=[]; for(let y=now.getFullYear()+1;y>=2022;y--) yrs.push(y);
   const rate=rateFor(selY,selM);
@@ -790,6 +827,13 @@ function viewHistorico(){
     </div></div>`;
   const c=cuentas.find(x=>x.id===histId);
   if(c){
+    // Curva de valor en el tiempo (moneda nativa)
+    const asc=registros.filter(r=>r.cuenta_id===c.id&&r.saldo!=null).sort((a,b)=> a.anio-b.anio||a.mes-b.mes);
+    if(asc.length>=2){
+      const serie=asc.map(r=>({label:MESES[r.mes]+" "+String(r.anio).slice(2), v:r.saldo}));
+      html+=`<div class="card" style="margin-top:16px"><div class="grp-title" style="color:var(--navy)">Valor de ${c.nombre} en el tiempo (${c.moneda})</div>
+        <div style="padding:8px 14px 14px">${bigLineSVG(serie,"var(--navy-700)")}</div></div>`;
+    }
     const rs=registros.filter(r=>r.cuenta_id===c.id&&r.saldo!=null).sort((a,b)=> b.anio-a.anio||b.mes-a.mes);
     html+=`<div class="card" style="margin-top:16px"><table>
       <thead><tr><th>Periodo</th><th>Saldo (${c.moneda})</th><th>Aporte</th><th>Retiro</th><th>Variación</th><th>Ganancia real</th><th>Rentab.</th></tr></thead><tbody>`;
@@ -869,6 +913,81 @@ function viewLegado(){
 
   document.getElementById('view').innerHTML=html;
   document.getElementById('lgY').onchange=e=>{legY=+e.target.value;viewLegado();};
+}
+
+/* ===== ANÁLISIS (concentración + benchmark) ===== */
+function viewAnalisis(){
+  const pers=periodsWithData();
+  const last = pers.length? pers[pers.length-1] : {y:selY,m:selM};
+
+  // --- Concentración por clase de activo ---
+  const map={};
+  cuentas.filter(c=>c.categoria==="Inversión").forEach(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(!r||r.saldo==null) return;
+    const v=toCcy(r.saldo,c.moneda,last.y,last.m,CCY); const k=claseActivo(c);
+    map[k]=(map[k]||0)+v;
+  });
+  const arr=Object.entries(map).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  const tot=arr.reduce((s,x)=>s+x.v,0)||1;
+  const colors={"Cripto":"#B0863A","Acciones / Brokers":"#0B2545","Efectivo y ahorro":"#1E7A5A","Activos fijos":"#13355F","Otro":"#8A98A8"};
+
+  // cuenta individual más grande
+  let topCuenta=null;
+  cuentas.filter(c=>c.categoria==="Inversión").forEach(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(!r||r.saldo==null) return;
+    const v=toCcy(r.saldo,c.moneda,last.y,last.m,CCY); if(!topCuenta||v>topCuenta.v) topCuenta={n:c.nombre,v};
+  });
+  const alertas=[];
+  const cripto=arr.find(x=>x.k==="Cripto"); if(cripto && cripto.v/tot>0.25) alertas.push(`Cripto pesa ${(cripto.v/tot*100).toFixed(0)}% del portafolio — alta volatilidad concentrada.`);
+  if(arr[0] && arr[0].v/tot>0.55) alertas.push(`"${arr[0].k}" concentra ${(arr[0].v/tot*100).toFixed(0)}% de todo.`);
+  if(topCuenta && topCuenta.v/tot>0.30) alertas.push(`Una sola cuenta (${topCuenta.n}) es ${(topCuenta.v/tot*100).toFixed(0)}% del total — riesgo de cuenta única.`);
+
+  let concRows=arr.map(x=>`<tr>
+     <td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${colors[x.k]||'#8A98A8'};margin-right:8px"></span>${x.k}</td>
+     <td class="num">${fmt(x.v)}</td>
+     <td style="width:200px"><div class="rankbar"><span class="small muted">${(x.v/tot*100).toFixed(0)}%</span><div class="bar" style="flex:1"><i style="width:${(x.v/tot*100).toFixed(1)}%;background:${colors[x.k]||'#8A98A8'}"></i></div></div></td>
+   </tr>`).join("");
+
+  let html=`<div class="sec-h"><h2>Composición y concentración</h2><span class="hint">${MESES_L[last.m]} ${last.y} · ${CCY}</span></div>`;
+  if(alertas.length) html+=`<div class="cfg" style="background:var(--neg-soft);border-color:#E9C2C7;color:#7d2630">⚠ ${alertas.join("<br>⚠ ")}</div>`;
+  html+=`<div class="card"><table><tbody>${concRows||'<tr><td class="empty">Sin datos</td></tr>'}</tbody></table></div>`;
+
+  // --- Benchmark ---
+  const bench=LS.get("bench",{inflacion:5.0,sp500:10.0});
+  // rentabilidad anualizada de la cartera
+  let valorizAcum=0, valorInv=0;
+  cuentas.filter(c=>c.categoria==="Inversión").forEach(c=>{
+    const ac=perfAcum(c.id,{upto:last}); if(ac.pnl) valorizAcum+=toCcy(ac.pnl,c.moneda,last.y,last.m,CCY);
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(r&&r.saldo!=null) valorInv+=toCcy(r.saldo,c.moneda,last.y,last.m,CCY);
+  });
+  const base=valorInv-valorizAcum;
+  const retTotal = base>0? valorizAcum/base : null;
+  const nMeses = pers.length;
+  const anual = (retTotal!=null && nMeses>=2)? Math.pow(1+retTotal,12/nMeses)-1 : null;
+
+  html+=`<div class="sec-h"><h2>Benchmark de rentabilidad</h2><span class="hint">tu cartera vs referencias (anualizado)</span></div>`;
+  if(anual==null){
+    html+=`<div class="card"><div class="empty">Necesitas al menos <b>dos meses</b> registrados para comparar tu rentabilidad anualizada. Vas en ${nMeses}.</div></div>`;
+  }else{
+    const rows=[{n:"Tu cartera",v:anual*100,col:"var(--navy)"},{n:"Inflación COP",v:+bench.inflacion,col:"var(--neg)"},{n:"S&P 500 (ref.)",v:+bench.sp500,col:"var(--brass)"}];
+    const maxV=Math.max(...rows.map(r=>Math.abs(r.v)),1);
+    html+=`<div class="card"><table><tbody>`+rows.map(r=>`<tr>
+      <td style="font-weight:${r.n==='Tu cartera'?700:500}">${r.n}</td>
+      <td class="num ${r.v>=0?'pos':'neg'}">${(r.v>=0?'+':'')+r.v.toFixed(1)}%</td>
+      <td style="width:220px"><div class="bar" style="height:9px"><i style="width:${Math.abs(r.v)/maxV*100}%;background:${r.col}"></i></div></td></tr>`).join("")+`</tbody></table>
+      <div class="toolbar" style="border-top:1px solid var(--line-soft);border-bottom:0">
+        <div class="f"><label class="fl">Inflación COP anual %</label><input id="bInf" class="num-in" value="${bench.inflacion}"></div>
+        <div class="f"><label class="fl">S&P 500 anual % (ref.)</label><input id="bSp" class="num-in" value="${bench.sp500}"></div>
+        <button class="btn ghost sm" id="bSave">Guardar referencias</button>
+      </div>
+      <div class="legend" style="padding:0 14px 14px"><span>Tu rentabilidad real (descontando aportes/retiros), anualizada sobre ${nMeses} meses medidos. Las referencias son editables; cámbialas por los datos reales que manejes.</span></div></div>`;
+  }
+
+  document.getElementById("view").innerHTML=html;
+  if(document.getElementById("bSave")) document.getElementById("bSave").onclick=()=>{
+    LS.set("bench",{inflacion:parseFloat(document.getElementById("bInf").value)||0,sp500:parseFloat(document.getElementById("bSp").value)||0});
+    toast("Referencias guardadas"); viewAnalisis();
+  };
 }
 
 /* ===== BITÁCORA Y RESPALDOS ===== */
