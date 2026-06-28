@@ -452,6 +452,28 @@ function renderMini(){
   </div>`;
 }
 
+const COINS={BTC:"bitcoin",ETH:"ethereum",SOL:"solana",BNB:"binancecoin",USDT:"tether",USDC:"usd-coin",XRP:"ripple",ADA:"cardano",DOGE:"dogecoin",MATIC:"matic-network",AVAX:"avalanche-2",DOT:"polkadot",LINK:"chainlink",LTC:"litecoin",TRX:"tron",SHIB:"shiba-inu",UNI:"uniswap",ATOM:"cosmos",XLM:"stellar",BCH:"bitcoin-cash"};
+function parseHoldings(s){ if(!s) return [];
+  return s.split(/[,;\n]+/).map(p=>p.trim()).filter(Boolean).map(p=>{
+    let m=p.match(/^([A-Za-z]{2,6})\s*[:= ]\s*([\d.]+)$/); if(!m) m=p.match(/^([\d.]+)\s*([A-Za-z]{2,6})$/);
+    if(!m) return null; let sym,qty;
+    if(isNaN(m[1])){ sym=m[1].toUpperCase(); qty=parseFloat(m[2]); } else { qty=parseFloat(m[1]); sym=m[2].toUpperCase(); }
+    if(!COINS[sym]||isNaN(qty)) return null; return {sym,qty};
+  }).filter(Boolean);
+}
+async function fetchCryptoPrices(syms){
+  const ids=[...new Set(syms.map(s=>COINS[s]).filter(Boolean))]; if(!ids.length) return {};
+  try{ const r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids="+ids.join(",")+"&vs_currencies=usd");
+    const j=await r.json(); const out={}; for(const s of syms){ const id=COINS[s]; if(j[id]) out[s]=j[id].usd; } return out;
+  }catch(e){ return {}; }
+}
+async function cotizarHoldings(notas){
+  const h=parseHoldings(notas); if(!h.length) return null;
+  const prices=await fetchCryptoPrices(h.map(x=>x.sym));
+  let total=0,ok=false; for(const x of h){ if(prices[x.sym]!=null){ total+=x.qty*prices[x.sym]; ok=true; } }
+  return ok? Math.round(total*100)/100 : null;
+}
+
 async function fetchFX(){
   // 1) TRM oficial (datos.gov.co / Superfinanciera)
   try{ const r=await fetch("https://www.datos.gov.co/resource/32sa-8pi3.json?$order=vigenciadesde%20DESC&$limit=1");
@@ -735,10 +757,12 @@ function viewRegistrar(){
     grupos[tipo].forEach(c=>{
       const r=regFor(c.id,selY,selM)||{}; const pv=prevReg(c.id,selY,selM);
       const open=(r.aportes||r.retiros)?"open":"";
+      const tieneHold=parseHoldings(c.notas).length>0;
       html+=`<div class="erow ${open}" data-id="${c.id}">
         <div class="nm">${c.nombre} <span class="tag ${c.moneda==='USD'?'usd':'cop'}">${c.moneda}</span>
           <span class="prev">${pv?("anterior: "+pv.saldo.toLocaleString("es-CO")):"primer registro"}</span></div>
-        <div><input class="num-in s" data-id="${c.id}" placeholder="saldo ${c.moneda}" value="${r.saldo??""}"></div>
+        <div><input class="num-in s" data-id="${c.id}" placeholder="saldo ${c.moneda}" value="${r.saldo??""}">
+          ${tieneHold?`<button class="linkbtn cot" data-id="${c.id}" style="margin-top:4px">⟳ cotizar (${c.notas})</button>`:""}</div>
         <div class="calc" data-calc="${c.id}"></div>
         <div style="text-align:right"><button class="linkbtn tg">+ aporte/retiro</button></div>
         <div class="flow">
@@ -773,6 +797,13 @@ function viewRegistrar(){
     });
   };
   document.querySelectorAll(".erow input").forEach(i=> i.addEventListener("input",recalc));
+  document.querySelectorAll(".erow .cot").forEach(b=> b.onclick=async()=>{
+    const c=cuentas.find(x=>x.id===b.dataset.id); const old=b.textContent; b.textContent="cotizando…";
+    const v=await cotizarHoldings(c.notas);
+    if(v!=null){ const inp=document.querySelector(`.s[data-id="${c.id}"]`); inp.value=v; recalc(); toast(c.nombre+": "+v.toLocaleString("es-CO")+" USD"); }
+    else toast("No pude cotizar; revisa el formato (ej: BTC 1.5, ETH 10)");
+    b.textContent=old;
+  });
   recalc();
 
   $("#rgSave").onclick=async()=>{
@@ -863,6 +894,7 @@ function viewCuentas(){
       <div class="f"><label class="fl">Tipo</label><select id="ccTipo">${TIPOS.map(c=>`<option>${c}</option>`).join("")}</select></div>
       <div class="f"><label class="fl">Moneda</label><select id="ccMon"><option>COP</option><option>USD</option></select></div>
       <div class="f"><label class="fl">Titular</label><select id="ccTit">${TITULARES.map(c=>`<option>${c}</option>`).join("")}</select></div>
+      <div class="f" style="min-width:220px"><label class="fl">Tenencias cripto (opcional)</label><input id="ccNotas" placeholder="ej: BTC 1.5, ETH 10"></div>
       <button class="btn primary" id="ccSave">${editId?"Actualizar":"Agregar"}</button>
       ${editId?'<button class="btn ghost" id="ccCancel">Cancelar</button>':''}
     </div></div>`;
@@ -895,11 +927,11 @@ function viewCuentas(){
 
   if(editId){ const c=cuentas.find(x=>x.id===editId);
     $("#ccNombre").value=c.nombre; $("#ccCat").value=c.categoria; $("#ccTipo").value=c.tipo||"Otro";
-    $("#ccMon").value=c.moneda; $("#ccTit").value=c.titular||"Mauricio";
+    $("#ccMon").value=c.moneda; $("#ccTit").value=c.titular||"Mauricio"; $("#ccNotas").value=c.notas||"";
   }
   $("#ccSave").onclick=async()=>{
     const o={nombre:$("#ccNombre").value.trim(),categoria:$("#ccCat").value,tipo:$("#ccTipo").value,
-      moneda:$("#ccMon").value,titular:$("#ccTit").value};
+      moneda:$("#ccMon").value,titular:$("#ccTit").value,notas:$("#ccNotas").value.trim()};
     if(!o.nombre){toast("Ponle nombre a la cuenta");return;}
     if(editId){o.id=editId;} else {o.activa=true;o.orden=cuentas.length;}
     await db.upsertCuenta(o); await db.load(); editId=null; toast("Cuenta guardada"); viewCuentas();
@@ -1049,6 +1081,21 @@ function viewAnalisis(){
   if(alertas.length) html+=`<div class="cfg" style="background:var(--neg-soft);border-color:#E9C2C7;color:#7d2630">⚠ ${alertas.join("<br>⚠ ")}</div>`;
   html+=`<div class="card"><table><tbody>${concRows||'<tr><td class="empty">Sin datos</td></tr>'}</tbody></table></div>`;
 
+  // --- Patrimonio por titular ---
+  const tm={};
+  cuentas.filter(c=>c.categoria==="Inversión").forEach(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(!r||r.saldo==null) return;
+    const k=c.titular||"—"; tm[k]=(tm[k]||0)+toCcy(r.saldo,c.moneda,last.y,last.m,CCY);
+  });
+  const ta=Object.entries(tm).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  const tt=ta.reduce((s,x)=>s+x.v,0)||1;
+  if(ta.length){
+    html+=`<div class="sec-h"><h2>Patrimonio por titular</h2><span class="hint">${CCY}</span></div><div class="card"><table><tbody>`+
+      ta.map(x=>`<tr><td style="font-weight:600">${x.k}</td><td class="num">${fmt(x.v)}</td>
+        <td style="width:200px"><div class="rankbar"><span class="small muted">${(x.v/tt*100).toFixed(0)}%</span><div class="bar" style="flex:1"><i style="width:${(x.v/tt*100).toFixed(1)}%;background:var(--navy-700)"></i></div></div></td></tr>`).join("")+
+      `</tbody></table></div>`;
+  }
+
   // --- Benchmark ---
   const bench=LS.get("bench",{inflacion:5.0,sp500:10.0});
   // rentabilidad anualizada de la cartera
@@ -1080,7 +1127,19 @@ function viewAnalisis(){
       <div class="legend" style="padding:0 14px 14px"><span>Tu rentabilidad real (descontando aportes/retiros), anualizada sobre ${nMeses} meses medidos. Las referencias son editables; cámbialas por los datos reales que manejes.</span></div></div>`;
   }
 
-  document.getElementById("view").innerHTML=html;
+  document.getElementById("view").innerHTML=html+`<div class="sec-h"><h2>Cotizaciones cripto</h2><span class="hint">en vivo · USD</span></div><div class="card" id="cryptoBox"><div class="empty">Cargando precios…</div></div>`;
+  // Precios cripto en vivo
+  (async()=>{
+    const syms=["BTC","ETH","SOL","BNB","XRP","ADA","DOGE","USDT"];
+    const p=await fetchCryptoPrices(syms);
+    const box=document.getElementById("cryptoBox"); if(!box) return;
+    const keys=Object.keys(p);
+    if(!keys.length){ box.innerHTML=`<div class="empty">No pude cargar precios ahora.</div>`; return; }
+    box.innerHTML=`<table><tbody>`+syms.filter(s=>p[s]!=null).map(s=>`<tr><td style="font-weight:600">${s}</td>
+      <td class="num">$${p[s].toLocaleString("es-CO",{maximumFractionDigits:p[s]<1?4:2})}</td>
+      <td class="muted small">${CCY==="COP"?("≈ $"+Math.round(p[s]*rateFor(last.y,last.m)).toLocaleString("es-CO")+" COP"):""}</td></tr>`).join("")+`</tbody></table>
+      <div class="legend" style="padding:10px 14px"><span>Fuente: CoinGecko. Para que una cuenta se cotice sola, edítala en Cuentas y pon sus tenencias (ej: BTC 1.5, ETH 10); luego usa “⟳ cotizar” en Registrar.</span></div>`;
+  })();
   if(document.getElementById("bSave")) document.getElementById("bSave").onclick=()=>{
     LS.set("bench",{inflacion:parseFloat(document.getElementById("bInf").value)||0,sp500:parseFloat(document.getElementById("bSp").value)||0});
     toast("Referencias guardadas"); viewAnalisis();
