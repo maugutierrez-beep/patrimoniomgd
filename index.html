@@ -439,6 +439,21 @@ function nwInCcy(y,m,ccy){
   }
   return t;
 }
+// Descompone el cambio de patrimonio entre dos meses: aportes (ahorro) + valorización (mercado) + efecto cambiario
+function atribucion(prev,last,ccy){
+  let aportes=0,valoriz=0,fx=0;
+  cuentas.filter(c=>c.categoria!=="Ingreso").forEach(c=>{
+    const rb=regFor(c.id,last.y,last.m); if(!rb||rb.saldo==null) return;
+    const ra=regFor(c.id,prev.y,prev.m)||prevReg(c.id,prev.y,prev.m);
+    const aNat=ra&&ra.saldo!=null?ra.saldo:0;
+    const flows=(+rb.aportes||0)-(+rb.retiros||0);
+    const pnl=rb.saldo-aNat-flows;
+    const fA=toCcy(1,c.moneda,prev.y,prev.m,ccy), fB=toCcy(1,c.moneda,last.y,last.m,ccy);
+    const s=c.categoria==="Pasivo"?-1:1;
+    fx+=s*aNat*(fB-fA); aportes+=s*flows*fB; valoriz+=s*pnl*fB;
+  });
+  return {aportes,valoriz,fx,total:aportes+valoriz+fx};
+}
 // serie de patrimonio por mes (solo meses con al menos un registro)
 function periodsWithData(){
   const set=new Set(); registros.forEach(r=> set.add(r.anio+"-"+r.mes));
@@ -494,17 +509,21 @@ async function cotizarHoldings(notas){
   return ok? Math.round(total*100)/100 : null;
 }
 
-async function fetchFX(){
-  // 1) TRM oficial (datos.gov.co / Superfinanciera)
-  try{ const r=await fetch("https://www.datos.gov.co/resource/32sa-8pi3.json?$order=vigenciadesde%20DESC&$limit=1");
+async function fetchFXAsOf(dateStr){
+  // TRM oficial vigente en una fecha dada (o la más reciente si no se pasa fecha)
+  try{
+    const q = dateStr
+      ? "?$where=vigenciadesde%20%3C=%20'"+dateStr+"T23:59:59'&$order=vigenciadesde%20DESC&$limit=1"
+      : "?$order=vigenciadesde%20DESC&$limit=1";
+    const r=await fetch("https://www.datos.gov.co/resource/32sa-8pi3.json"+q);
     const j=await r.json(); const v=j&&j[0]&&parseFloat(j[0].valor); if(v) return Math.round(v);
   }catch(e){}
-  // 2) Respaldo: API genérica
   try{ const r=await fetch("https://open.er-api.com/v6/latest/USD"); const j=await r.json();
     const cop=j&&j.rates&&j.rates.COP; if(cop) return Math.round(cop);
   }catch(e){}
   return null;
 }
+async function fetchFX(){ return fetchFXAsOf(null); }
 function exportReport(last){
   const P=netWorthParts(last.y,last.m), nw=P.total;
   // composición por clase
@@ -801,8 +820,13 @@ function viewRegistrar(){
   $("#rgM").onchange=e=>{selM=+e.target.value;viewRegistrar();};
   $("#rgFx").onclick=async()=>{
     $("#rgFx").textContent="…";
-    const v=await fetchFX();
-    if(v){ $("#rgRate").value=v; toast("Tasa de hoy: "+v.toLocaleString("es-CO")); }
+    const cal=new Date(); let dateStr=null;
+    if(selY<cal.getFullYear() || (selY===cal.getFullYear() && selM<cal.getMonth())){
+      const ld=new Date(selY,selM+1,0);
+      dateStr=`${selY}-${String(selM+1).padStart(2,'0')}-${String(ld.getDate()).padStart(2,'0')}`;
+    }
+    const v=await fetchFXAsOf(dateStr);
+    if(v){ $("#rgRate").value=v; toast("TRM "+(dateStr?("cierre "+MESES[selM]):"hoy")+": "+v.toLocaleString("es-CO")); }
     else toast("No pude traer la tasa; escríbela a mano");
     $("#rgFx").textContent="Hoy";
   };
@@ -1146,6 +1170,20 @@ function viewAnalisis(){
       <td style="width:170px"><div class="rankbar"><span class="small muted">${(x.v/atot*100).toFixed(0)}%</span><div class="bar" style="flex:1"><i style="width:${(x.v/atot*100).toFixed(1)}%;background:var(--brass)"></i></div></div></td></tr>`).join("")+`</tbody></table></div>`;
   }
 
+  // --- Atribución del crecimiento (último mes con dato vs anterior) ---
+  if(pers.length>=2){
+    const prevP=pers[pers.length-2];
+    const at=atribucion(prevP,last,CCY);
+    const items=[{n:"Ahorro (aportes)",v:at.aportes,c:"#2056A6"},{n:"Mercado (valorización)",v:at.valoriz,c:"#1E7A5A"},{n:"Efecto cambiario (USD/COP)",v:at.fx,c:"#B0863A"}];
+    const maxAbs=Math.max(1,...items.map(i=>Math.abs(i.v)));
+    html+=`<div class="sec-h"><h2>¿De dónde vino tu crecimiento?</h2><span class="hint">${MESES[prevP.m]} → ${MESES[last.m]} ${last.y}</span></div>
+      <div class="card"><table><tbody>`+items.map(i=>`<tr><td style="font-weight:600">${i.n}</td>
+        <td class="num ${i.v>=0?'pos':'neg'}">${fmtSigned(i.v)}</td>
+        <td style="width:160px"><div class="bar"><i style="width:${Math.abs(i.v)/maxAbs*100}%;background:${i.c};margin-left:${i.v>=0?'0':'auto'}"></i></div></td></tr>`).join("")+
+        `<tr style="background:#FAFBFC"><td style="font-weight:700">Cambio total</td><td class="num ${at.total>=0?'pos':'neg'}" style="font-weight:700">${fmtSigned(at.total)}</td><td></td></tr>`+
+        `</tbody></table><div class="legend" style="padding:10px 14px"><span>Separa cuánto creciste por meter plata, cuánto por desempeño del mercado, y cuánto por el movimiento del dólar. Lo único que mide tu acierto invirtiendo es <b>Mercado</b>.</span></div></div>`;
+  }
+
   // --- Benchmark ---
   const bench=LS.get("bench",{inflacion:5.0,sp500:10.0});
   // rentabilidad anualizada de la cartera
@@ -1318,6 +1356,25 @@ async function viewProyeccion(){
 }
 
 /* ===== BITÁCORA Y RESPALDOS ===== */
+function saludDatos(){
+  const out=[]; const pers=periodsWithData();
+  if(!pers.length){ out.push({ok:false,t:"Aún no has registrado ningún cierre."}); return out; }
+  const first=pers[0], last=pers[pers.length-1];
+  // huecos de meses
+  let gaps=0, y=first.y,m=first.m;
+  const has=(yy,mm)=>registros.some(r=>r.anio===yy&&r.mes===mm&&r.saldo!=null);
+  while(y<last.y||(y===last.y&&m<last.m)){ m++; if(m>11){m=0;y++;} if(!(y===last.y&&m===last.m)&&!has(y,m)) gaps++; }
+  out.push(gaps?{ok:false,t:`${gaps} mes(es) sin registrar entre tu primer y último cierre.`}:{ok:true,t:"Sin huecos en tu serie de meses."});
+  // cuentas activas sin saldo en el último cierre
+  const sinSaldo=cuentas.filter(c=>c.activa!==false&&c.categoria==="Inversión"&&!(regFor(c.id,last.y,last.m))).map(c=>c.nombre);
+  out.push(sinSaldo.length?{ok:false,t:`${sinSaldo.length} cuenta(s) activa(s) sin saldo en ${MESES[last.m]} ${last.y}: ${sinSaldo.slice(0,4).join(", ")}${sinSaldo.length>4?"…":""}`}:{ok:true,t:`Todas las cuentas activas tienen saldo en el último cierre.`});
+  // tasa del último mes
+  out.push(tasas.some(t=>t.anio===last.y&&t.mes===last.m)?{ok:true,t:"El último cierre tiene su tasa USD/COP registrada."}:{ok:false,t:"Falta la tasa USD/COP del último cierre."});
+  // mes actual cerrado
+  const cal=new Date(); const cerrado=has(cal.getFullYear(),cal.getMonth());
+  out.push(cerrado?{ok:true,t:`Cierre de ${MESES_L[cal.getMonth()]} ${cal.getFullYear()} registrado.`}:{ok:false,t:`Falta cerrar ${MESES_L[cal.getMonth()]} ${cal.getFullYear()}.`});
+  return out;
+}
 async function viewBitacora(){
   $("#view").innerHTML=`<div class="empty">Cargando bitácora…</div>`;
   const [log,snaps]=await Promise.all([db.listBitacora(80), db.listSnapshots()]);
@@ -1347,7 +1404,10 @@ async function viewBitacora(){
       }).join("")+`</tbody></table></div>`;
   }
 
-  $("#view").innerHTML=`<div class="sec-h"><h2>Bitácora de cambios</h2><span class="hint">últimos 80 movimientos</span></div>`+logHtml+snapHtml;
+  const salud=saludDatos();
+  const saludHtml=`<div class="sec-h"><h2>Salud de los datos</h2><span class="hint">confianza en tus números</span></div>
+    <div class="card"><table><tbody>`+salud.map(s=>`<tr><td style="width:28px;color:${s.ok?'var(--pos)':'var(--neg)'};font-weight:700">${s.ok?'✓':'!'}</td><td>${s.t}</td></tr>`).join("")+`</tbody></table></div>`;
+  $("#view").innerHTML=saludHtml+`<div class="sec-h"><h2>Bitácora de cambios</h2><span class="hint">últimos 80 movimientos</span></div>`+logHtml+snapHtml;
 
   document.querySelectorAll(".restoreSnap").forEach(b=> b.onclick=async()=>{
     if(!confirm("Restaurar esta foto sobrescribe los saldos actuales con los de esa fecha (no borra cuentas nuevas). ¿Continuar?")) return;
