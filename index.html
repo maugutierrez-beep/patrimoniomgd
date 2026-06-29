@@ -196,6 +196,7 @@ input.num-in{text-align:right;font-variant-numeric:tabular-nums}
     <button data-t="resumen" class="on">Resumen</button>
     <button data-t="analisis">Análisis</button>
     <button data-t="metas">Metas</button>
+    <button data-t="proyeccion">Proyección</button>
     <button data-t="registrar">Registrar</button>
     <button data-t="ingresos">Ingresos</button>
     <button data-t="cuentas">Cuentas</button>
@@ -568,6 +569,7 @@ function render(){
   if(TAB==="resumen") viewResumen();
   else if(TAB==="analisis") viewAnalisis();
   else if(TAB==="metas") viewMetas();
+  else if(TAB==="proyeccion") viewProyeccion();
   else if(TAB==="registrar") viewRegistrar();
   else if(TAB==="ingresos") viewIngresos();
   else if(TAB==="cuentas") viewCuentas();
@@ -1116,6 +1118,34 @@ function viewAnalisis(){
       `</tbody></table></div>`;
   }
 
+  // --- Exposición cambiaria ---
+  let usdv=0,copv=0;
+  cuentas.filter(c=>c.categoria!=="Ingreso").forEach(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m); if(!r||r.saldo==null) return;
+    const v=toCcy(r.saldo,c.moneda,last.y,last.m,CCY)*(c.categoria==="Pasivo"?-1:1);
+    if(c.moneda==="USD") usdv+=v; else copv+=v;
+  });
+  const fxtot=(usdv+copv)||1;
+  html+=`<div class="sec-h"><h2>Exposición cambiaria</h2><span class="hint">en qué moneda está tu patrimonio</span></div>`;
+  if(usdv/fxtot>0.85) html+=`<div class="cfg" style="background:var(--neg-soft);border-color:#E9C2C7;color:#7d2630">⚠ El ${(usdv/fxtot*100).toFixed(0)}% de tu patrimonio está en dólares: muy expuesto al movimiento del USD/COP.</div>`;
+  html+=`<div class="card"><table><tbody>
+    <tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#2056A6;margin-right:8px"></span>Dólar (USD)</td><td class="num">${fmt(usdv)}</td><td style="width:160px"><div class="rankbar"><span class="small muted">${(usdv/fxtot*100).toFixed(0)}%</span><div class="bar" style="flex:1"><i style="width:${(usdv/fxtot*100).toFixed(1)}%;background:#2056A6"></i></div></div></td></tr>
+    <tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#3C7A3A;margin-right:8px"></span>Peso (COP)</td><td class="num">${fmt(copv)}</td><td style="width:160px"><div class="rankbar"><span class="small muted">${(copv/fxtot*100).toFixed(0)}%</span><div class="bar" style="flex:1"><i style="width:${(copv/fxtot*100).toFixed(1)}%;background:#3C7A3A"></i></div></div></td></tr>
+  </tbody></table></div>`;
+
+  // --- Concentración por cuenta ---
+  const accs=cuentas.filter(c=>c.categoria==="Inversión").map(c=>{
+    const r=regFor(c.id,last.y,last.m)||prevReg(c.id,last.y,last.m);
+    return r&&r.saldo!=null?{n:c.nombre,v:toCcy(r.saldo,c.moneda,last.y,last.m,CCY)}:null;
+  }).filter(Boolean).sort((a,b)=>b.v-a.v);
+  const atot=accs.reduce((s,x)=>s+x.v,0)||1;
+  if(accs.length){
+    html+=`<div class="sec-h"><h2>Concentración por cuenta</h2><span class="hint">riesgo de cuenta única</span></div>`;
+    if(accs[0].v/atot>0.30) html+=`<div class="cfg" style="background:var(--neg-soft);border-color:#E9C2C7;color:#7d2630">⚠ ${accs[0].n} concentra el ${(accs[0].v/atot*100).toFixed(0)}% de tu patrimonio. Una caída fuerte ahí te golpea de lleno.</div>`;
+    html+=`<div class="card"><table><tbody>`+accs.map(x=>`<tr><td style="font-weight:600">${x.n}</td><td class="num">${fmt(x.v)}</td>
+      <td style="width:170px"><div class="rankbar"><span class="small muted">${(x.v/atot*100).toFixed(0)}%</span><div class="bar" style="flex:1"><i style="width:${(x.v/atot*100).toFixed(1)}%;background:var(--brass)"></i></div></div></td></tr>`).join("")+`</tbody></table></div>`;
+  }
+
   // --- Benchmark ---
   const bench=LS.get("bench",{inflacion:5.0,sp500:10.0});
   // rentabilidad anualizada de la cartera
@@ -1231,6 +1261,60 @@ function metaForm(meta){
     await db.setConfig("meta",{objetivo:obj,moneda:$("#mMon").value,fecha:$("#mFecha").value});
     toast("Meta guardada"); viewMetas();
   };
+}
+
+/* ===== PROYECCIÓN / LIBERTAD FINANCIERA ===== */
+async function viewProyeccion(){
+  $("#view").innerHTML=`<div class="empty">Cargando…</div>`;
+  const p=(await db.getConfig("proj"))||{rend:8,aporte:0,anios:20,gasto:0,retiro:4};
+  const pers=periodsWithData(); const last=pers.length?pers[pers.length-1]:{y:selY,m:selM};
+  const nw0=nwInCcy(last.y,last.m,CCY);
+  $("#view").innerHTML=`
+    <div class="card"><div class="toolbar" style="border-bottom:0;flex-wrap:wrap">
+      <div class="f"><label class="fl">Rendimiento anual esperado %</label><input id="pRend" class="num-in" value="${p.rend}"></div>
+      <div class="f"><label class="fl">Aporte mensual (${CCY})</label><input id="pAp" class="num-in" value="${p.aporte}"></div>
+      <div class="f"><label class="fl">Horizonte (años)</label><input id="pYr" class="num-in" value="${p.anios}"></div>
+      <div class="f"><label class="fl">Gasto anual deseado (${CCY})</label><input id="pGas" class="num-in" value="${p.gasto}"></div>
+      <div class="f"><label class="fl">Retiro seguro % (regla)</label><input id="pRet" class="num-in" value="${p.retiro}"></div>
+    </div></div>
+    <div id="projOut"></div>`;
+  const recompute=async()=>{
+    const rend=parseFloat($("#pRend").value)||0, aporte=parseFloat($("#pAp").value)||0,
+      anios=Math.max(1,Math.min(60,parseInt($("#pYr").value)||20)),
+      gasto=parseFloat($("#pGas").value)||0, retiro=parseFloat($("#pRet").value)||4;
+    await db.setConfig("proj",{rend,aporte,anios,gasto,retiro});
+    const proj=(r)=>{ const rm=Math.pow(1+r/100,1/12)-1; let v=nw0; const serie=[{label:String(last.y),v}];
+      for(let m=1;m<=anios*12;m++){ v=v*(1+rm)+aporte; if(m%12===0) serie.push({label:String(last.y+m/12),v}); } return serie; };
+    const base=proj(rend), cons=proj(Math.max(0,rend-3)), opt=proj(rend+3);
+    const endB=base[base.length-1].v, endC=cons[cons.length-1].v, endO=opt[opt.length-1].v;
+    const fi = gasto>0 ? gasto/(retiro/100) : null;
+    let fiYear=null; if(fi){ for(const pt of base){ if(pt.v>=fi){ fiYear=pt.label; break; } } }
+    const out=$("#projOut");
+    out.innerHTML=`
+      <div class="sec-h"><h2>Proyección a ${anios} años</h2><span class="hint">desde ${fmt(nw0)} ${CCY} hoy</span></div>
+      <div class="card"><div style="padding:8px 14px 14px">${bigLineSVG(base,"var(--brass)")}</div></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:16px">
+        <div class="card" style="padding:16px"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Conservador (${Math.max(0,rend-3)}%)</div><div class="num" style="font-size:19px;font-weight:600;margin-top:4px">${fmt(endC)}</div></div>
+        <div class="card" style="padding:16px;border:2px solid var(--brass)"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Base (${rend}%)</div><div class="num" style="font-size:19px;font-weight:600;margin-top:4px">${fmt(endB)}</div></div>
+        <div class="card" style="padding:16px"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Optimista (${rend+3}%)</div><div class="num" style="font-size:19px;font-weight:600;margin-top:4px">${fmt(endO)}</div></div>
+      </div>
+      <div class="sec-h"><h2>Libertad financiera</h2><span class="hint">vivir de los rendimientos</span></div>
+      <div class="card" style="padding:20px">
+        ${fi? `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Capital necesario</div>
+              <div class="num" style="font-family:Fraunces,serif;font-size:28px;color:var(--navy);margin-top:2px">${fmt(fi)} ${CCY}</div>
+              <div class="muted small">para vivir con ${fmt(gasto)}/año al ${retiro}% de retiro</div></div>
+            <div style="text-align:right"><div class="l" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);font-weight:600">Llegas (escenario base)</div>
+              <div class="num" style="font-size:22px;font-weight:600;margin-top:4px">${nw0>=fi?"🎯 Ya eres libre":(fiYear?("≈ "+fiYear):"más allá de "+anios+" años")}</div></div>
+          </div>
+          <div class="bar" style="height:12px;margin-top:16px"><i style="width:${Math.min(100,nw0/fi*100).toFixed(1)}%;background:var(--pos)"></i></div>
+          <div class="muted small" style="margin-top:6px">Hoy tienes el ${(nw0/fi*100).toFixed(1)}% del capital para ser libre.</div>`
+        : `<div class="muted">Escribe tu <b>gasto anual deseado</b> arriba para calcular cuánto capital necesitas para vivir de rentas y en qué año lo alcanzas.</div>`}
+      </div>
+      <p class="muted small" style="margin-top:12px">Proyección de interés compuesto: parte de tu patrimonio actual, suma tu aporte mensual y crece al rendimiento esperado. El “retiro seguro” (típico 4%) es cuánto puedes sacar al año sin agotar el capital. Son estimaciones para planear, no promesas de mercado.</p>`;
+  };
+  ["pRend","pAp","pYr","pGas","pRet"].forEach(id=> $("#"+id).addEventListener("input",recompute));
+  recompute();
 }
 
 /* ===== BITÁCORA Y RESPALDOS ===== */
