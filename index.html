@@ -753,6 +753,33 @@ function sparkSVG(serie){
   </svg>`;
 }
 
+// Gráficos para el histórico (valores en COP)
+function svgLineM(serie){
+  if(serie.length<2) return '<div class="empty">Sin suficiente histórico.</div>';
+  const W=720,H=240,pl=8,pr=8,pt=16,pb=26;
+  const vs=serie.map(s=>s.v),min=Math.min(...vs,0),max=Math.max(...vs),rng=(max-min)||1;
+  const X=i=>pl+i*(W-pl-pr)/(serie.length-1), Y=v=>H-pb-(v-min)/rng*(H-pt-pb);
+  const d=serie.map((s,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(s.v).toFixed(1)).join(' ');
+  const area=`M${X(0)} ${H-pb} `+serie.map((s,i)=>'L'+X(i).toFixed(1)+' '+Y(s.v).toFixed(1)).join(' ')+` L${X(serie.length-1)} ${H-pb} Z`;
+  const idxs=[0,Math.floor((serie.length-1)/2),serie.length-1];
+  const xl=idxs.map(i=>`<text x="${X(i).toFixed(1)}" y="${H-8}" font-size="10" fill="#8A98A8" text-anchor="${i===0?'start':(i===serie.length-1?'end':'middle')}">${serie[i].label}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><defs><linearGradient id="lgm" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#13355F" stop-opacity=".15"/><stop offset="1" stop-color="#13355F" stop-opacity="0"/></linearGradient></defs>
+    <line x1="${pl}" y1="${(H-pb)}" x2="${W-pr}" y2="${(H-pb)}" stroke="#EAF0F6"/>
+    <path d="${area}" fill="url(#lgm)"/><path d="${d}" fill="none" stroke="#13355F" stroke-width="2.4" stroke-linejoin="round"/>
+    ${xl}<text x="${pl}" y="12" font-size="10" fill="#8A98A8">máx ${Math.round(max/1e6).toLocaleString("es-CO")}M COP</text></svg>`;
+}
+function svgBarsM(serie){
+  if(!serie.length) return '<div class="empty">Sin datos.</div>';
+  const W=720,H=220,pl=8,pr=8,pt=22,pb=26,n=serie.length;
+  const vs=serie.map(s=>s.v),max=Math.max(...vs,0),min=Math.min(...vs,0),rng=(max-min)||1;
+  const Y=v=>H-pb-(v-min)/rng*(H-pt-pb),bw=(W-pl-pr)/n*0.55;
+  const bars=serie.map((s,i)=>{const cx=pl+(i+0.5)*(W-pl-pr)/n,y0=Y(0),y1=Y(s.v),top=Math.min(y0,y1),h=Math.abs(y1-y0)||1;
+    return `<rect x="${(cx-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${s.v>=0?'#2056A6':'#B23A48'}"/>
+      <text x="${cx.toFixed(1)}" y="${(H-8)}" font-size="11" fill="#8A98A8" text-anchor="middle">${s.label}</text>
+      <text x="${cx.toFixed(1)}" y="${(top-5).toFixed(1)}" font-size="10" fill="#5B6B7F" text-anchor="middle">${(s.v>=0?'+':'−')+Math.abs(Math.round(s.v/1e6)).toLocaleString("es-CO")}M</text>`;}).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><line x1="${pl}" y1="${Y(0).toFixed(1)}" x2="${W-pr}" y2="${Y(0).toFixed(1)}" stroke="#EAF0F6"/>${bars}</svg>`;
+}
+
 // Gráfico de líneas con ejes/etiquetas para una serie [{label, v}]
 function bigLineSVG(serie, color){
   if(serie.length<2) return `<div class="empty">Se necesitan al menos dos meses para ver la curva.</div>`;
@@ -1073,7 +1100,22 @@ function viewLegado(){
   }).join('');
 
   let html=`<div class="cfg" style="background:#EEF3F8;border-color:#CBDBEC;color:#234">
-    <b>Histórico previo</b> — tus registros de variaci&oacute;n mensual (ganancia/p&eacute;rdida) tal como los llevabas, en COP. Es un archivo de solo lectura: el seguimiento nuevo por saldos vive en las dem&aacute;s pesta&ntilde;as. A&ntilde;os inferidos del orden de tu Excel; si alguno va corrido, av&iacute;same.</div>
+    <b>Histórico previo</b> — tus registros de variaci&oacute;n mensual (ganancia/p&eacute;rdida) tal como los llevabas, en COP. Es un archivo de solo lectura: el seguimiento nuevo por saldos vive en las dem&aacute;s pesta&ntilde;as. A&ntilde;os inferidos del orden de tu Excel; si alguno va corrido, av&iacute;same.</div>`;
+
+  // Gráficos de desempeño histórico (datos reales 2023-2026)
+  const ING_LEG=["Sierraluna","FND","Salario Sierraluna","Contrato FND","Alquiler Giardino"];
+  let cum=0, lineSerie=[];
+  years.forEach(yy=>{ for(let mm=0;mm<12;mm++){ let mp=0,any=false;
+    Object.entries(LEGADO[yy]).forEach(([a,arr])=>{ if(ING_LEG.includes(a))return; if(arr[mm]!=null){mp+=arr[mm];any=true;} });
+    if(any){ cum+=mp; lineSerie.push({label:MESES[mm]+" "+String(yy).slice(2), v:cum}); } } });
+  const annual=years.map(yy=>{ let s=0; Object.entries(LEGADO[yy]).forEach(([a,arr])=>{ if(ING_LEG.includes(a))return; arr.forEach(v=>{if(v!=null)s+=v;}); }); return {label:String(yy),v:s}; });
+  html+=`<div class="sec-h"><h2>Ganancia acumulada en el tiempo</h2><span class="hint">todas tus inversiones · COP</span></div>
+    <div class="card"><div style="padding:10px 14px">${svgLineM(lineSerie)}</div>
+    <div class="legend" style="padding:0 14px 12px"><span>Suma encadenada de tu ganancia mensual desde ${years[0]}. Acumulado total: <b>${Math.round(cum/1e6).toLocaleString("es-CO")}M COP</b>.</span></div></div>
+    <div class="sec-h"><h2>Ganancia por año</h2><span class="hint">COP</span></div>
+    <div class="card"><div style="padding:14px">${svgBarsM(annual)}</div></div>`;
+
+  html+=`<div class="sec-h"><h2>Detalle por año</h2></div>
   <div class="card"><div class="toolbar" style="border-bottom:0">
     <div class="f"><label class="fl">A&ntilde;o</label><select id="lgY">${years.map(y=>`<option ${y===legY?'selected':''}>${y}</option>`).join('')}</select></div>
     <div style="flex:1"></div>
